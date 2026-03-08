@@ -13,3 +13,9 @@ export async function getSessionFromCookies(): Promise<SessionInfo | null> {
   if (role !== "A" && role !== "B") return null;
   return { coupleId, role };
 }
+
+export async function getAuthUserIdFromCookies(): Promise<string | null> {
+  const session = await getSessionFromCookies();
+  if (!session) return null;
+  return session.coupleId;
+}
