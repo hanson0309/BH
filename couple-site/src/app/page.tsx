@@ -26,17 +26,17 @@ export default async function Home() {
   const profileA = couple?.memberProfiles?.["A"];
   const profileB = couple?.memberProfiles?.["B"];
   
-  // 获取昵称：自己帖子显示对方给的备注，对方帖子显示我给对方的备注
+  // 获取昵称：当前查看者(我)给作者起的备注名
+  // 规则：每个成员 profile 里的 nickname 字段表示「这个人给对方起的备注」
+  // 所以：当帖子作者是 A 时，要显示 B.profile.nickname（B 给 A 起的备注）；作者是 B 时，显示 A.profile.nickname。
   const getNickname = (authorRole: "A" | "B") => {
-    if (authorRole === session.role) {
-      // 看自己的帖子，显示对方给我起的备注（partner.nickname）
-      const partnerRole = session.role === "A" ? "B" : "A";
-      const partnerProfile = partnerRole === "A" ? profileA : profileB;
-      return partnerProfile?.nickname || "";
-    } else {
-      // 看对方的帖子，显示我给对方的备注（me.nickname）
-      return myProfile?.nickname || "";
-    }
+    const viewerRole = session.role;
+    const viewerProfile = viewerRole === "A" ? profileA : profileB;
+
+    // 只在作者不是自己时显示（自己帖子不需要显示自己给自己的备注）
+    if (authorRole === viewerRole) return "";
+
+    return viewerProfile?.nickname || "";
   };
   
   const getAuthorName = (role: "A" | "B") => {
