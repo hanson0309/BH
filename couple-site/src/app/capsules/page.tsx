@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -40,6 +40,8 @@ function daysLeft(unlockAt: string) {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+import { globalCache, fetchProfiles } from "@/lib/globalCache";
+
 export default function CapsulesPage() {
   const [items, setItems] = useState<Capsule[]>([]);
   const [title, setTitle] = useState("");
@@ -49,34 +51,34 @@ export default function CapsulesPage() {
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<{ A: Profile; B: Profile } | null>(null);
 
-  async function refresh() {
+  async function refresh(force = false) {
+    if (!force && globalCache.capsules) {
+      setItems(globalCache.capsules as Capsule[]);
+      return;
+    }
     const res = await fetch("/api/capsules");
     if (!res.ok) {
       setError("unauthorized");
       return;
     }
     const data = (await res.json()) as { capsules: Capsule[] };
+    globalCache.capsules = data.capsules;
     setItems(data.capsules);
   }
 
-  // 获取用户资料
-  async function loadProfiles() {
-    try {
-      const res = await fetch("/api/profile");
-      if (res.ok) {
-        const data = await res.json();
-        // 根据 role 正确映射 A/B 的资料
-        setProfiles({
-          A: data.me.role === "A" ? data.me : data.partner,
-          B: data.me.role === "B" ? data.me : data.partner
-        });
-      }
-    } catch {
-      // 忽略错误
+  // 获取用户资料（使用共享函数，自动处理重复请求）
+  async function loadProfiles(force = false) {
+    const profiles = await fetchProfiles(force);
+    if (profiles) {
+      setProfiles(profiles as { A: Profile; B: Profile });
     }
   }
 
+  const initialized = useRef(false);
+
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     refresh();
     loadProfiles();
   }, []);
@@ -120,7 +122,7 @@ export default function CapsulesPage() {
       }
       setTitle("");
       setContent("");
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }
@@ -141,7 +143,7 @@ export default function CapsulesPage() {
         }
         return;
       }
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }

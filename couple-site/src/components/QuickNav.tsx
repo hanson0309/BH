@@ -6,6 +6,7 @@ import { useRef, useCallback } from "react";
 const NAV_ITEMS = [
   { href: "/", label: "首页", icon: "🏠" },
   { href: "/profile", label: "个人", icon: "👤" },
+  { href: "/diary", label: "日记", icon: "📔" },
   { href: "/anniversaries", label: "纪念日", icon: "💕" },
   { href: "/todos", label: "待办", icon: "📝" },
   { href: "/capsules", label: "胶囊", icon: "💌" },
@@ -54,16 +55,27 @@ export default function QuickNav() {
           </svg>
         </summary>
         <div className="p-2 pt-0 grid grid-cols-3 gap-1 min-w-[180px]">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.href}
-              onClick={() => navigate(item.href)}
-              className="flex flex-col items-center p-2 rounded-lg hover:bg-pink-50 transition-colors"
-            >
-              <span className="text-xl">{item.icon}</span>
-              <span className="text-[10px] text-pink-700 mt-0.5">{item.label}</span>
-            </button>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <button
+                key={item.href}
+                onClick={() => navigate(item.href)}
+                className={`flex flex-col items-center p-2 rounded-lg transition-all ${
+                  isActive 
+                    ? "bg-gradient-to-br from-pink-100 to-rose-100 text-pink-700 shadow-sm" 
+                    : "hover:bg-pink-50 text-pink-600"
+                }`}
+              >
+                <span className={`text-xl ${isActive ? "scale-110" : ""} transition-transform`}>
+                  {item.icon}
+                </span>
+                <span className={`text-[10px] mt-0.5 ${isActive ? "font-medium text-pink-700" : "text-pink-500"}`}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
         <div className="p-2 border-t border-pink-100">
           <button

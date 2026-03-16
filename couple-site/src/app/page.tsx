@@ -1,87 +1,273 @@
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import TogetherTimer from "@/components/TogetherTimer";
+import { globalCache, clearCache } from "@/lib/globalCache";
 
-import { connectToDatabase } from "@/lib/db";
-import { PostModel } from "@/models/Post";
-import { CoupleModel } from "@/models/Couple";
-import { getSessionFromCookies } from "@/lib/request";
+type Profile = {
+  role: "A" | "B";
+  name: string;
+  birthday: string | null;
+  avatar: string;
+  nickname: string;
+};
 
-export default async function Home() {
-  const session = await getSessionFromCookies();
-  if (!session) redirect("/enter");
+type Post = {
+  id: string;
+  coupleId: string;
+  authorRole: "A" | "B";
+  text: string;
+  images: string[];
+  createdAt: string;
+};
 
-  await connectToDatabase();
-  const posts = await PostModel.find({ coupleId: session.coupleId }).sort({ _id: -1 }).limit(20).lean();
+type Anniversary = {
+  id: string;
+  title: string;
+  date: string;
+  recurring: boolean;
+};
+
+function daysUntilAnniversary(dateStr: string, recurring: boolean = false): number {
+  const now = new Date();
+  const originalDate = new Date(dateStr);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   
-  // 获取个人资料
-  const couple = await CoupleModel.findById(session.coupleId).lean();
-  const myProfile = couple?.memberProfiles?.[session.role];
+  if (recurring) {
+    const thisYearDate = new Date(now.getFullYear(), originalDate.getMonth(), originalDate.getDate());
+    let targetDate = thisYearDate;
+    if (thisYearDate.getTime() < startOfToday.getTime()) {
+      targetDate = new Date(now.getFullYear() + 1, originalDate.getMonth(), originalDate.getDate());
+    }
+    const diff = targetDate.getTime() - startOfToday.getTime();
+    return Math.round(diff / (1000 * 60 * 60 * 24));
+  }
   
-  // 获取在一起日期
-  const togetherSince = couple?.togetherSince;
-  
-  // 获取双方资料用于帖子显示
-  const profileA = couple?.memberProfiles?.["A"];
-  const profileB = couple?.memberProfiles?.["B"];
-  
-  // 获取昵称：当前查看者(我)给作者起的备注名
-  // 规则：memberProfiles[X].nickname 存储的是「伴侣给 X 的备注」
-  // 所以：当 viewer 是 B、author 是 A 时，要显示 B 给 A 的备注 = profileA.nickname
+  const startOfTarget = new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate());
+  const diff = startOfTarget.getTime() - startOfToday.getTime();
+  return Math.round(diff / (1000 * 60 * 60 * 24));
+}
+
+export default function Home() {
+  const router = useRouter();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [profiles, setProfiles] = useState<{ A: Profile; B: Profile } | null>(null);
+  const [myRole, setMyRole] = useState<"A" | "B">("A");
+  const [togetherSince, setTogetherSince] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [anniversaries, setAnniversaries] = useState<Anniversary[]>([]);
+
+  async function loadAnniversaries(force = false) {
+    if (!force && globalCache.anniversaries) {
+      setAnniversaries(globalCache.anniversaries as Anniversary[]);
+      return;
+    }
+    try {
+      const res = await fetch("/api/anniversaries");
+      if (res.ok) {
+        const data = await res.json();
+        globalCache.anniversaries = data.anniversaries;
+        setAnniversaries(data.anniversaries);
+      }
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  // 预加载照片数据（用户访问照片页时更快）
+  async function preloadPhotos() {
+    if (globalCache.photos) return; // 已有缓存不重复加载
+    try {
+      const res = await fetch("/api/photos");
+      if (res.ok) {
+        const data = await res.json();
+        globalCache.photos = data.photos;
+      }
+    } catch {
+      // 预加载失败不影响首页
+    }
+  }
+
+  async function loadPosts(force = false) {
+    if (!force && globalCache.posts) {
+      setPosts(globalCache.posts as Post[]);
+      return;
+    }
+    try {
+      const res = await fetch("/api/posts");
+      if (!res.ok) {
+        if (res.status === 401) {
+          router.push("/enter");
+        }
+        return;
+      }
+      const data = await res.json();
+      globalCache.posts = data.posts;
+      setPosts(data.posts);
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  async function loadProfile(force = false) {
+    if (!force && globalCache.profiles) {
+      setProfiles(globalCache.profiles as { A: Profile; B: Profile });
+      const coupleData = globalCache.coupleData as { togetherSince: string | null } | undefined;
+      if (coupleData) {
+        setTogetherSince(coupleData.togetherSince);
+      }
+      return;
+    }
+    try {
+      const res = await fetch("/api/profile");
+      if (res.ok) {
+        const data = await res.json();
+        const profiles = {
+          A: data.me.role === "A" ? data.me : data.partner,
+          B: data.me.role === "B" ? data.me : data.partner
+        };
+        globalCache.profiles = profiles;
+        globalCache.coupleData = { togetherSince: data.togetherSince };
+        setProfiles(profiles);
+        setMyRole(data.me.role);
+        setTogetherSince(data.togetherSince);
+      }
+    } catch {
+      // 忽略错误
+    }
+  }
+
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+    setLoading(true);
+    Promise.all([
+      loadPosts(),
+      loadProfile(),
+      loadAnniversaries(),
+      preloadPhotos() // 预加载照片数据
+    ]).finally(() => setLoading(false));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim() || submitting) return;
+    
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: text.trim() }),
+      });
+      if (!res.ok) throw new Error("failed");
+      
+      setText("");
+      clearCache("posts");
+      await loadPosts(true);
+    } catch {
+      alert("发布失败，请重试");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const myProfile = profiles?.[myRole];
+
   const getNickname = (authorRole: "A" | "B") => {
-    const viewerRole = session.role;
-    if (viewerRole === "A" && authorRole === "B") return profileB?.nickname || "";
-    if (viewerRole === "B" && authorRole === "A") return profileA?.nickname || "";
+    if (!profiles) return "";
+    if (myRole === "A" && authorRole === "B") return profiles.B?.nickname || "";
+    if (myRole === "B" && authorRole === "A") return profiles.A?.nickname || "";
     return "";
   };
   
   const getAuthorName = (role: "A" | "B") => {
-    const profile = role === "A" ? profileA : profileB;
+    const profile = profiles?.[role];
     return profile?.name || (role === "A" ? "👦 A" : "👧 B");
   };
+  
   const getAuthorAvatar = (role: "A" | "B") => {
-    const profile = role === "A" ? profileA : profileB;
-    return profile?.avatar || null;
+    return profiles?.[role]?.avatar || null;
   };
 
   return (
     <div className="min-h-screen py-8">
       <div className="mx-auto w-full max-w-2xl px-4">
-        {/* 我们在一起 - 实时动态计时器 */}
         {togetherSince && (
           <div className="mb-8 flex justify-center">
             <div className="text-center">
               <div className="text-2xl mb-3">💕</div>
               <div className="text-sm text-pink-600 font-medium mb-3">我们在一起</div>
-              <TogetherTimer since={togetherSince.toISOString().split("T")[0]} />
+              <TogetherTimer since={togetherSince} />
             </div>
           </div>
         )}
 
-        {/* 发帖卡片 */}
+        {(() => {
+          const upcoming = anniversaries
+            .map(a => ({ ...a, days: daysUntilAnniversary(a.date, a.recurring) }))
+            .filter(a => a.days >= 0 && a.days <= 7)
+            .sort((a, b) => a.days - b.days);
+          
+          if (upcoming.length === 0) return null;
+          
+          return (
+            <div className="mb-6 space-y-3">
+              {upcoming.map(a => (
+                <div 
+                  key={a.id}
+                  className={`rounded-xl border-2 p-4 flex items-center justify-between ${
+                    a.days === 0 
+                      ? "bg-gradient-to-r from-rose-50 to-pink-50 border-rose-200" 
+                      : "bg-white border-pink-100"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+                      a.days === 0 ? "bg-rose-100" : "bg-pink-100"
+                    }`}>
+                      {a.days === 0 ? "🎉" : "📅"}
+                    </div>
+                    <div>
+                      <div className={`font-medium ${a.days === 0 ? "text-rose-700" : "text-pink-700"}`}>
+                        {a.title}
+                      </div>
+                      <div className="text-xs text-pink-400">
+                        {new Date(a.date).toLocaleDateString("zh-CN", {
+                          month: "short",
+                          day: "numeric",
+                        })}
+                        {a.recurring && " · 每年重复"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-2xl font-bold ${
+                      a.days === 0 ? "text-rose-500" : "text-pink-500"
+                    }`}>
+                      {a.days === 0 ? "今天" : `${a.days}天`}
+                    </div>
+                    <div className="text-xs text-pink-400">
+                      {a.days === 0 ? "💕 记得庆祝" : "后到期"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         <div className="relative mb-6">
           <div className="absolute -inset-0.5 bg-gradient-to-r from-sky-200 to-cyan-200 rounded-3xl blur opacity-50" />
           <form
             className="relative rounded-2xl bg-white border-2 border-sky-100 p-5 shadow-sm"
-            action={async (formData) => {
-              "use server";
-              const text = String(formData.get("text") || "");
-              if (text.length > 2000) throw new Error("text_too_long");
-
-              await connectToDatabase();
-              const s = await getSessionFromCookies();
-              if (!s) redirect("/enter");
-
-              await PostModel.create({
-                coupleId: s.coupleId,
-                authorRole: s.role,
-                text,
-                images: [],
-              });
-              revalidatePath("/");
-              redirect("/");
-            }}
+            onSubmit={handleSubmit}
           >
             <div className="flex items-center gap-2 mb-3">
               {myProfile?.avatar ? (
@@ -91,50 +277,59 @@ export default async function Home() {
                   width={32}
                   height={32}
                   className={`w-8 h-8 rounded-full object-cover border-2 ${
-                    session.role === "A" 
+                    myRole === "A" 
                       ? "border-blue-400" 
                       : "border-pink-400"
                   }`}
                 />
               ) : (
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                  session.role === "A" 
+                  myRole === "A" 
                     ? "bg-gradient-to-br from-blue-400 to-blue-500 text-white" 
                     : "bg-gradient-to-br from-sky-400 to-cyan-500 text-white"
                 }`}>
-                  {session.role}
+                  {myRole}
                 </div>
               )}
               <div>
-                <span className="text-sm text-sky-900 font-medium">{myProfile?.name || (session.role === "A" ? "👦 A" : "👧 B")}</span>
+                <span className="text-sm text-sky-900 font-medium">{myProfile?.name || (myRole === "A" ? "👦 A" : "👧 B")}</span>
                 <span className="text-xs text-sky-400 block">分享此刻的心情...</span>
               </div>
             </div>
             <textarea
-              name="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               className="w-full resize-none rounded-xl border-2 border-sky-100 px-4 py-3 text-sky-900 placeholder-sky-300 focus:border-sky-300 focus:outline-none focus:ring-4 focus:ring-sky-50 transition-all bg-sky-50/30"
               placeholder="今天想对TA说什么甜蜜的话呢？✨"
               rows={3}
+              maxLength={2000}
             />
             <div className="mt-3 flex justify-end">
               <button 
-                className="rounded-xl bg-gradient-to-r from-sky-500 to-cyan-500 px-5 py-2.5 text-white font-semibold shadow-md shadow-sky-200 hover:shadow-lg hover:shadow-sky-300 hover:scale-[1.02] active:scale-[0.98] transition-all" 
+                className="rounded-xl bg-gradient-to-r from-sky-500 to-cyan-500 px-5 py-2.5 text-white font-semibold shadow-md shadow-sky-200 hover:shadow-lg hover:shadow-sky-300 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60" 
                 type="submit"
+                disabled={submitting || !text.trim()}
               >
                 <span className="flex items-center gap-1.5">
                   <span>💌</span>
-                  发布
+                  {submitting ? "发布中..." : "发布"}
                 </span>
               </button>
             </div>
           </form>
         </div>
 
-        {/* 动态流 */}
+        {loading && (
+          <div className="text-center py-8">
+            <div className="text-2xl mb-2">⏳</div>
+            <p className="text-sky-500/80 text-sm">加载中...</p>
+          </div>
+        )}
+
         <div className="space-y-4">
           {posts.map((p) => (
             <div 
-              key={p._id.toString()} 
+              key={p.id} 
               className="relative rounded-2xl bg-white border-2 border-sky-100 p-5 shadow-sm hover:shadow-md hover:border-sky-200 transition-all"
             >
               <div className="flex items-center gap-3 mb-3">

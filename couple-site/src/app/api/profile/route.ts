@@ -19,19 +19,28 @@ export async function GET() {
   const otherRole = session.role === "A" ? "B" : "A";
   const otherProfile = couple.memberProfiles?.[otherRole] || { name: "", birthday: null, avatar: "", nickname: "" };
 
+  // 生成头像 URL（如果不是 base64 则保留原值）
+  const getAvatarUrl = (avatar: string, role: "A" | "B") => {
+    if (!avatar) return "";
+    // 如果已经是 URL（不是 base64），直接使用
+    if (!avatar.startsWith("data:")) return avatar;
+    // 否则生成 API URL
+    return `/api/avatar?role=${role}`;
+  };
+
   return NextResponse.json({
     me: {
       role: session.role,
       name: profile.name || "",
       birthday: profile.birthday ? new Date(profile.birthday).toISOString().split("T")[0] : null,
-      avatar: profile.avatar || "",
+      avatar: getAvatarUrl(profile.avatar || "", session.role),
       nickname: profile.nickname || "",
     },
     partner: {
       role: otherRole,
       name: otherProfile.name || "",
       birthday: otherProfile.birthday ? new Date(otherProfile.birthday).toISOString().split("T")[0] : null,
-      avatar: otherProfile.avatar || "",
+      avatar: getAvatarUrl(otherProfile.avatar || "", otherRole),
       nickname: otherProfile.nickname || "",
     },
     togetherSince: couple.togetherSince ? new Date(couple.togetherSince).toISOString().split("T")[0] : null,
@@ -57,17 +66,24 @@ export async function POST(request: Request) {
   const profileA = couple.memberProfiles?.["A"] || { name: "", birthday: null, avatar: "", nickname: "" };
   const profileB = couple.memberProfiles?.["B"] || { name: "", birthday: null, avatar: "", nickname: "" };
 
+  // 生成头像 URL
+  const getAvatarUrl = (avatar: string, role: "A" | "B") => {
+    if (!avatar) return "";
+    if (!avatar.startsWith("data:")) return avatar;
+    return `/api/avatar?role=${role}`;
+  };
+
   return NextResponse.json({
     A: {
       name: profileA.name || "",
       birthday: profileA.birthday ? new Date(profileA.birthday).toISOString().split("T")[0] : null,
-      avatar: profileA.avatar || "",
+      avatar: getAvatarUrl(profileA.avatar || "", "A"),
       nickname: profileA.nickname || "",
     },
     B: {
       name: profileB.name || "",
       birthday: profileB.birthday ? new Date(profileB.birthday).toISOString().split("T")[0] : null,
-      avatar: profileB.avatar || "",
+      avatar: getAvatarUrl(profileB.avatar || "", "B"),
       nickname: profileB.nickname || "",
     },
   });
@@ -137,20 +153,27 @@ export async function PUT(request: Request) {
   const profile = savedProfiles?.[role] || { name: "", birthday: null, avatar: "", nickname: "" };
   const otherProfile = savedProfiles?.[otherRole] || { name: "", birthday: null, avatar: "", nickname: "" };
 
+  // 生成头像 URL
+  const getAvatarUrl = (avatar: string, r: "A" | "B") => {
+    if (!avatar) return "";
+    if (!avatar.startsWith("data:")) return avatar;
+    return `/api/avatar?role=${r}`;
+  };
+
   const togetherSinceValue = (saved as { togetherSince?: Date })?.togetherSince;
   return NextResponse.json({
     me: {
       role: role,
       name: profile.name || "",
       birthday: profile.birthday ? new Date(profile.birthday).toISOString().split("T")[0] : null,
-      avatar: profile.avatar || "",
+      avatar: getAvatarUrl(profile.avatar || "", role),
       nickname: profile.nickname || "",
     },
     partner: {
       role: otherRole,
       name: otherProfile.name || "",
       birthday: otherProfile.birthday ? new Date(otherProfile.birthday).toISOString().split("T")[0] : null,
-      avatar: otherProfile.avatar || "",
+      avatar: getAvatarUrl(otherProfile.avatar || "", otherRole),
       nickname: otherProfile.nickname || "",
     },
     togetherSince: togetherSinceValue 

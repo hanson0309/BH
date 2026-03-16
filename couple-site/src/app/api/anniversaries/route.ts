@@ -12,13 +12,14 @@ export async function GET() {
   const couple = await CoupleModel.findById(session.coupleId).lean();
   if (!couple) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const anniversaries = (couple.anniversaries ?? []) as Array<{ title: string; date: Date }>;
+  const anniversaries = (couple.anniversaries ?? []) as Array<{ title: string; date: Date; recurring?: boolean }>;
 
   return NextResponse.json({
     anniversaries: anniversaries.map((a, idx) => ({
       id: String(idx),
       title: a.title,
       date: a.date,
+      recurring: a.recurring ?? false,
     })),
   });
 }
@@ -27,9 +28,15 @@ export async function POST(req: Request) {
   const session = await getSessionFromCookies();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const body = (await req.json()) as { title?: string; date?: string };
+  const body = (await req.json()) as { title?: string; date?: string; recurring?: boolean };
+  console.log("Received body:", body); // 调试日志
+  
   const title = body.title?.trim();
   const dateStr = body.date?.trim();
+  const recurring = body.recurring ?? false;
+  
+  console.log("Parsed values:", { title, dateStr, recurring }); // 调试日志
+  
   if (!title || !dateStr) return NextResponse.json({ error: "invalid_input" }, { status: 400 });
 
   const date = new Date(dateStr);
@@ -42,7 +49,7 @@ export async function POST(req: Request) {
   if (!couple) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   couple.anniversaries = couple.anniversaries || [];
-  couple.anniversaries.push({ title, date });
+  couple.anniversaries.push({ title, date, recurring });
   await couple.save();
 
   return NextResponse.json({ ok: true });

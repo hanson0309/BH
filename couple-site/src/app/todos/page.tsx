@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -29,6 +29,8 @@ type Todo = {
   createdAt: string;
 };
 
+import { globalCache, fetchProfiles } from "@/lib/globalCache";
+
 export default function TodosPage() {
   const [items, setItems] = useState<Todo[]>([]);
   const [text, setText] = useState("");
@@ -36,37 +38,46 @@ export default function TodosPage() {
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<{ A: Profile; B: Profile } | null>(null);
 
-  // 获取待办列表
-  async function refresh() {
+  // 获取待办列表（带缓存）
+  async function refresh(force = false) {
+    if (!force && globalCache.todos) {
+      setItems(globalCache.todos as Todo[]);
+      return;
+    }
     const res = await fetch("/api/todos");
     if (!res.ok) {
       setError("unauthorized");
       return;
     }
     const data = (await res.json()) as { todos: Todo[] };
+    globalCache.todos = data.todos;
     setItems(data.todos);
   }
 
-  // 获取用户资料
-  async function loadProfiles() {
-    try {
-      const res = await fetch("/api/profile");
-      if (res.ok) {
-        const data = await res.json();
-        // 根据 role 正确映射 A/B 的资料
-        setProfiles({
-          A: data.me.role === "A" ? data.me : data.partner,
-          B: data.me.role === "B" ? data.me : data.partner
-        });
-      }
-    } catch {
-      // 忽略错误
+  // 获取用户资料（使用共享函数，自动处理重复请求）
+  async function loadProfiles(force = false) {
+    const profiles = await fetchProfiles(force);
+    if (profiles) {
+      setProfiles(profiles as { A: Profile; B: Profile });
     }
   }
 
+  const initialized = useRef(false);
+
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     refresh();
     loadProfiles();
+  }, []);
+
+  // 监听 AI 助手的刷新事件
+  useEffect(() => {
+    const handleRefresh = () => {
+      refresh(true); // 强制刷新，绕过缓存
+    };
+    window.addEventListener("refreshData", handleRefresh);
+    return () => window.removeEventListener("refreshData", handleRefresh);
   }, []);
 
   const sorted = useMemo(() => {
@@ -79,17 +90,17 @@ export default function TodosPage() {
   const completedCount = useMemo(() => items.filter(i => i.done).length, [items]);
   const totalCount = items.length;
 
-  // 获取显示名字
-  const getDisplayName = (role: "A" | "B") => {
+  // 获取显示名字 - useCallback 缓存函数
+  const getDisplayName = useCallback((role: "A" | "B") => {
     const profile = profiles?.[role];
     return profile?.nickname || profile?.name || (role === "A" ? "👦 A" : "👧 B");
-  };
+  }, [profiles]);
 
-  // 获取头像
-  const getAvatar = (role: "A" | "B") => {
+  // 获取头像 - useCallback 缓存函数
+  const getAvatar = useCallback((role: "A" | "B") => {
     const profile = profiles?.[role];
     return profile?.avatar;
-  };
+  }, [profiles]);
 
   async function add() {
     setLoading(true);
@@ -111,7 +122,7 @@ export default function TodosPage() {
         return;
       }
       setText("");
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }
@@ -136,7 +147,7 @@ export default function TodosPage() {
         }
         return;
       }
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }
@@ -157,7 +168,7 @@ export default function TodosPage() {
         }
         return;
       }
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }

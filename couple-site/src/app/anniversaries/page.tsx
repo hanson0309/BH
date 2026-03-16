@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { globalCache } from "@/lib/globalCache";
 
 // 爱心图标
 function HeartIcon({ className }: { className?: string }) {
@@ -16,50 +17,144 @@ type Anniversary = {
   id: string;
   title: string;
   date: string;
+  recurring: boolean;
 };
 
-function daysUntil(dateStr: string) {
+function daysUntil(dateStr: string, recurring: boolean = false) {
   const now = new Date();
-  const target = new Date(dateStr);
+  const originalDate = new Date(dateStr);
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  
+  if (recurring) {
+    const thisYearDate = new Date(now.getFullYear(), originalDate.getMonth(), originalDate.getDate());
+    let targetDate = thisYearDate;
+    if (thisYearDate.getTime() < startOfToday.getTime()) {
+      targetDate = new Date(now.getFullYear() + 1, originalDate.getMonth(), originalDate.getDate());
+    }
+    const diff = targetDate.getTime() - startOfToday.getTime();
+    return Math.round(diff / (1000 * 60 * 60 * 24));
+  }
+  
+  const startOfTarget = new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate());
   const diff = startOfTarget.getTime() - startOfToday.getTime();
   return Math.round(diff / (1000 * 60 * 60 * 24));
 }
 
+// 倒计时组件
+function CountdownTimer({ targetDate, title }: { targetDate: Date; title: string }) {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const diff = targetDate.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      return { days, hours, minutes, seconds };
+    };
+    
+    setTimeLeft(calculateTimeLeft());
+    
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [targetDate]);
+  
+  return (
+    <div className="bg-gradient-to-r from-rose-500 to-pink-500 rounded-2xl p-6 text-white shadow-lg shadow-pink-200 mb-6">
+      <div className="text-center">
+        <div className="text-sm font-medium mb-2 opacity-90">距离 {title} 还有</div>
+        <div className="grid grid-cols-4 gap-3 text-center">
+          <div className="bg-white/20 rounded-xl p-3">
+            <div className="text-3xl font-bold">{timeLeft.days}</div>
+            <div className="text-xs opacity-80">天</div>
+          </div>
+          <div className="bg-white/20 rounded-xl p-3">
+            <div className="text-3xl font-bold">{String(timeLeft.hours).padStart(2, '0')}</div>
+            <div className="text-xs opacity-80">时</div>
+          </div>
+          <div className="bg-white/20 rounded-xl p-3">
+            <div className="text-3xl font-bold">{String(timeLeft.minutes).padStart(2, '0')}</div>
+            <div className="text-xs opacity-80">分</div>
+          </div>
+          <div className="bg-white/20 rounded-xl p-3">
+            <div className="text-3xl font-bold">{String(timeLeft.seconds).padStart(2, '0')}</div>
+            <div className="text-xs opacity-80">秒</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CACHE_KEY = "anniversaries";
+
 export default function AnniversariesPage() {
   const [items, setItems] = useState<Anniversary[]>([]);
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(""); // 完整日期 YYYY-MM-DD
+  const [monthDay, setMonthDay] = useState(""); // 月日 MM-DD
+  const [recurring, setRecurring] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function refresh() {
+  async function refresh(force = false) {
+    if (!force && globalCache[CACHE_KEY]) {
+      setItems(globalCache[CACHE_KEY] as Anniversary[]);
+      return;
+    }
     const res = await fetch("/api/anniversaries");
     if (!res.ok) {
       setError("unauthorized");
       return;
     }
     const data = (await res.json()) as { anniversaries: Anniversary[] };
+    globalCache[CACHE_KEY] = data.anniversaries;
     setItems(data.anniversaries);
   }
 
+  const initialized = useRef(false);
+
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     refresh();
   }, []);
 
   const sorted = useMemo(() => {
-    return [...items].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return [...items].sort((a, b) => {
+      const daysA = daysUntil(a.date, a.recurring);
+      const daysB = daysUntil(b.date, b.recurring);
+      return daysA - daysB;
+    });
   }, [items]);
 
   async function add() {
     setLoading(true);
     setError(null);
     try {
+      // 循环纪念日只使用月日（默认年份2000），非循环使用完整日期
+      const dateToSend = recurring ? `2000-${monthDay}` : date;
+      
+      if (!title.trim() || !dateToSend) {
+        setError("请输入标题和日期");
+        return;
+      }
+      
       const res = await fetch("/api/anniversaries", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ title, date }),
+        body: JSON.stringify({ title, date: dateToSend, recurring }),
       });
       if (!res.ok) {
         const data: unknown = await res.json().catch(() => null);
@@ -73,7 +168,9 @@ export default function AnniversariesPage() {
       }
       setTitle("");
       setDate("");
-      await refresh();
+      setMonthDay("");
+      setRecurring(false);
+      await refresh(true);
     } finally {
       setLoading(false);
     }
@@ -94,10 +191,27 @@ export default function AnniversariesPage() {
         }
         return;
       }
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }
+  }
+
+  // 格式化日期显示
+  function formatDate(dateStr: string, isRecurring: boolean) {
+    const date = new Date(dateStr);
+    if (isRecurring) {
+      // 循环纪念日只显示月日
+      return date.toLocaleDateString("zh-CN", {
+        month: "long",
+        day: "numeric",
+      });
+    }
+    return date.toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   }
 
   return (
@@ -130,7 +244,7 @@ export default function AnniversariesPage() {
               <span className="text-sm font-medium text-pink-700">添加纪念日</span>
             </div>
             
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3">
               <label className="block">
                 <div className="text-sm text-pink-600 mb-2">标题</div>
                 <input
@@ -140,15 +254,57 @@ export default function AnniversariesPage() {
                   placeholder="比如：第一次见面、恋爱纪念日..."
                 />
               </label>
+              
+              {/* 日期输入：循环用月日，非循环用完整日期 */}
               <label className="block">
-                <div className="text-sm text-pink-600 mb-2">日期</div>
-                <input
-                  type="date"
-                  className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
+                <div className="text-sm text-pink-600 mb-2">
+                  {recurring ? "月/日" : "日期"}
+                </div>
+                {recurring ? (
+                  <input
+                    type="text"
+                    placeholder="MM-DD (如 03-09)"
+                    pattern="\d{2}-\d{2}"
+                    className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 placeholder-pink-300 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
+                    value={monthDay}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/[^\d]/g, "");
+                      if (val.length >= 2) {
+                        val = val.slice(0, 2) + "-" + val.slice(2, 4);
+                      }
+                      setMonthDay(val);
+                    }}
+                    maxLength={5}
+                  />
+                ) : (
+                  <input
+                    type="date"
+                    className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
+                )}
               </label>
+            </div>
+
+            {/* 循环开关 */}
+            <div className="flex items-center gap-3 mb-4 px-1">
+              <button
+                type="button"
+                onClick={() => setRecurring(!recurring)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  recurring ? "bg-pink-500" : "bg-pink-200"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    recurring ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+              <span className="text-sm text-pink-700">
+                {recurring ? "🔁 每年重复（只需输入月日）" : "📅 单次纪念"}
+              </span>
             </div>
 
             {error && (
@@ -160,7 +316,7 @@ export default function AnniversariesPage() {
             <div className="flex justify-end">
               <button
                 className="rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 px-5 py-2.5 text-white font-semibold shadow-md shadow-pink-200 hover:shadow-lg hover:shadow-pink-300 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60"
-                disabled={loading || !title.trim() || !date}
+                disabled={loading || !title.trim() || (recurring ? !monthDay : !date)}
                 onClick={add}
                 type="button"
               >
@@ -173,12 +329,41 @@ export default function AnniversariesPage() {
           </div>
         </div>
 
+        {/* 最近纪念日倒计时 */}
+        {(() => {
+          const upcoming = sorted
+            .map(a => ({ ...a, days: daysUntil(a.date, a.recurring) }))
+            .filter(a => a.days >= 0)
+            .sort((a, b) => a.days - b.days);
+          
+          if (upcoming.length === 0) return null;
+          
+          const nearest = upcoming[0];
+          const now = new Date();
+          const originalDate = new Date(nearest.date);
+          let targetDate: Date;
+          
+          if (nearest.recurring) {
+            const thisYearDate = new Date(now.getFullYear(), originalDate.getMonth(), originalDate.getDate());
+            targetDate = thisYearDate;
+            if (thisYearDate.getTime() < new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) {
+              targetDate = new Date(now.getFullYear() + 1, originalDate.getMonth(), originalDate.getDate());
+            }
+          } else {
+            targetDate = new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate());
+          }
+          
+          targetDate.setHours(23, 59, 59, 999);
+          
+          return <CountdownTimer targetDate={targetDate} title={nearest.title} />;
+        })()}
+
         {/* 纪念日列表 */}
         <div className="space-y-4">
           {sorted.map((a, idx) => {
-            const d = daysUntil(a.date);
+            const d = daysUntil(a.date, a.recurring);
             const isToday = d === 0;
-            const isPast = d < 0;
+            const isPast = d < 0 && !a.recurring;
             
             return (
               <div 
@@ -195,15 +380,17 @@ export default function AnniversariesPage() {
                   </div>
                 )}
                 
+                {a.recurring && (
+                  <div className="absolute -top-3 right-4 px-2 py-0.5 bg-pink-100 text-pink-600 text-[10px] font-medium rounded-full">
+                    🔁 每年
+                  </div>
+                )}
+                
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="text-sm font-semibold text-pink-800">{a.title}</div>
                     <div className="mt-1 text-xs text-pink-500">
-                      {new Date(a.date).toLocaleDateString("zh-CN", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
+                      {formatDate(a.date, a.recurring)}
                     </div>
                   </div>
                   <div className="text-right">
@@ -213,7 +400,7 @@ export default function AnniversariesPage() {
                       {isPast ? Math.abs(d) : d}
                     </div>
                     <div className="text-xs text-pink-400">
-                      {isToday ? "就是今天" : isPast ? "天前" : "天后"}
+                      {isToday ? "就是今天" : isPast ? "天前" : a.recurring ? "天后" : "天后"}
                     </div>
                   </div>
                 </div>
@@ -222,7 +409,7 @@ export default function AnniversariesPage() {
                   <button
                     className="text-xs text-pink-400 hover:text-rose-500 disabled:opacity-60 transition-colors"
                     disabled={loading}
-                    onClick={() => remove(idx)}
+                    onClick={() => remove(Number(a.id))}
                     type="button"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

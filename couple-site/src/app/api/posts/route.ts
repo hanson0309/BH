@@ -1,22 +1,18 @@
 import { NextResponse } from "next/server";
-
 import { connectToDatabase } from "@/lib/db";
-import { getAuthSessionFromCookies } from "@/lib/request";
+import { getSessionFromCookies } from "@/lib/request";
 import { PostModel } from "@/models/Post";
-import { UserModel } from "@/models/User";
 
 export async function GET(req: Request) {
-  const session = await getAuthSessionFromCookies();
+  const session = await getSessionFromCookies();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const cursor = searchParams.get("cursor");
 
   await connectToDatabase();
-  const user = await UserModel.findById(session.coupleId).lean();
-  if (!user?.coupleId) return NextResponse.json({ posts: [] });
 
-  const query: Record<string, unknown> = { coupleId: user.coupleId };
+  const query: Record<string, unknown> = { coupleId: session.coupleId };
   if (cursor) query._id = { $lt: cursor };
 
   const posts = await PostModel.find(query)
@@ -37,7 +33,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const session = await getAuthSessionFromCookies();
+  const session = await getSessionFromCookies();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as {

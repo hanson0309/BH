@@ -7,6 +7,12 @@ const ProfileSchema = new Schema({
   nickname: { type: String, default: "" }, // 伴侣给起的昵称
 }, { _id: false });
 
+const AnniversarySchema = new Schema({
+  title: { type: String, required: true },
+  date: { type: Date, required: true },
+  recurring: { type: Boolean, default: false },
+}, { _id: false });
+
 const CoupleSchema = new Schema(
   {
     inviteCode: { type: String, required: true, unique: true, index: true },
@@ -15,25 +21,20 @@ const CoupleSchema = new Schema(
       A: { type: ProfileSchema, default: () => ({}) },
       B: { type: ProfileSchema, default: () => ({}) },
     },
-    togetherSince: { type: Date, default: null }, // 在一起的日期
-    anniversaries: [
-      {
-        title: { type: String, required: true },
-        date: { type: Date, required: true },
-      },
-    ],
-    countdownAnniversaries: [
-      {
-        title: { type: String, required: true },
-        date: { type: Date, required: true },
-      },
-    ],
+    togetherSince: { type: Date, default: null },
+    anniversaries: { type: [AnniversarySchema], default: [] },
+    countdownAnniversaries: { type: [AnniversarySchema], default: [] },
+    // 在线状态追踪
+    presenceA: { type: Date, default: null },
+    presenceB: { type: Date, default: null },
   },
-  { timestamps: true }
+  { timestamps: true, strict: false }
 );
 
 export type Couple = InferSchemaType<typeof CoupleSchema>;
 
+// 删除可能缓存的旧模型，强制重新编译
+delete mongoose.models.Couple;
+
 export const CoupleModel =
-  (mongoose.models.Couple as mongoose.Model<Couple>) ||
   mongoose.model<Couple>("Couple", CoupleSchema);

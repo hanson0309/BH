@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -26,11 +26,104 @@ type Photo = {
   tags: string[];
   takenAt: string | null;
   contentType: string;
-  base64: string;
+  imageUrl: string;
   width: number | null;
   height: number | null;
   createdAt: string;
 };
+
+// 照片卡片组件（memo 优化，避免不必要的重渲染）
+const PhotoCard = React.memo(function PhotoCard({
+  photo,
+  getAvatar,
+  getDisplayName,
+  onClick,
+  onRemove,
+  loading,
+}: {
+  photo: Photo;
+  getAvatar: (role: "A" | "B") => string | undefined;
+  getDisplayName: (role: "A" | "B") => string;
+  onClick: () => void;
+  onRemove: (e: React.MouseEvent) => void;
+  loading: boolean;
+}) {
+  return (
+    <div
+      className="group relative rounded-2xl border-2 border-pink-100 bg-white overflow-hidden shadow-sm hover:shadow-md hover:border-pink-200 transition-all cursor-pointer"
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+    >
+      <div className="relative">
+        <Image
+          src={photo.imageUrl}
+          alt={photo.caption || "photo"}
+          className="h-36 w-full object-cover"
+          width={600}
+          height={400}
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-pink-900/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+      <div className="p-3">
+        <div className="flex items-center gap-2 mb-2">
+          {getAvatar(photo.uploadedByRole) ? (
+            <Image
+              src={getAvatar(photo.uploadedByRole)!}
+              alt={getDisplayName(photo.uploadedByRole)}
+              width={24}
+              height={24}
+              className="w-6 h-6 rounded-full object-cover"
+            />
+          ) : (
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+              photo.uploadedByRole === "A" 
+                ? "bg-gradient-to-br from-pink-400 to-pink-500 text-white" 
+                : "bg-gradient-to-br from-pink-400 to-rose-500 text-white"
+            }`}>
+              {photo.uploadedByRole}
+            </div>
+          )}
+          <div className="text-[11px] text-pink-400">
+            {new Date(photo.createdAt).toLocaleDateString("zh-CN")}
+          </div>
+        </div>
+        {photo.caption && <div className="text-sm text-pink-900 line-clamp-1 mb-2">{photo.caption}</div>}
+        {photo.tags?.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {photo.tags.slice(0, 2).map((t: string) => (
+              <span key={t} className="rounded-full bg-pink-100 px-2 py-0.5 text-[10px] text-pink-700">
+                {t}
+              </span>
+            ))}
+            {photo.tags.length > 2 && (
+              <span className="rounded-full bg-pink-50 px-2 py-0.5 text-[10px] text-pink-500">
+                +{photo.tags.length - 2}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <button
+        className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 shadow-sm flex items-center justify-center text-pink-400 hover:text-pink-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
+        disabled={loading}
+        onClick={onRemove}
+        type="button"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </button>
+    </div>
+  );
+});
 
 function fileToBase64(file: File): Promise<{ base64: string; contentType: string }> {
   return new Promise((resolve, reject) => {
@@ -51,6 +144,10 @@ function fileToBase64(file: File): Promise<{ base64: string; contentType: string
   });
 }
 
+const PHOTOS_PER_PAGE = 9; // 每页显示 9 张照片（3x3 网格）
+
+import { globalCache, fetchProfiles } from "@/lib/globalCache";
+
 export default function PhotosPage() {
   const [items, setItems] = useState<Photo[]>([]);
   const [caption, setCaption] = useState("");
@@ -62,39 +159,46 @@ export default function PhotosPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<{ A: Profile; B: Profile } | null>(null);
+  const [displayCount, setDisplayCount] = useState(PHOTOS_PER_PAGE);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function refresh() {
+  async function refresh(force = false) {
+    if (!force && globalCache.photos) {
+      setItems(globalCache.photos as Photo[]);
+      return;
+    }
     const res = await fetch("/api/photos");
     if (!res.ok) {
       setError("unauthorized");
       return;
     }
     const data = (await res.json()) as { photos: Photo[] };
+    globalCache.photos = data.photos;
     setItems(data.photos);
+    setDisplayCount(PHOTOS_PER_PAGE);
   }
 
-  // 获取用户资料
-  async function loadProfiles() {
-    try {
-      const res = await fetch("/api/profile");
-      if (res.ok) {
-        const data = await res.json();
-        // 根据 role 正确映射 A/B 的资料
-        setProfiles({
-          A: data.me.role === "A" ? data.me : data.partner,
-          B: data.me.role === "B" ? data.me : data.partner
-        });
-      }
-    } catch {
-      // 忽略错误
+  // 获取用户资料（使用共享函数，自动处理重复请求）
+  async function loadProfiles(force = false) {
+    const profiles = await fetchProfiles(force);
+    if (profiles) {
+      setProfiles(profiles as { A: Profile; B: Profile });
     }
   }
 
+  const initialized = useRef(false);
+
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
     refresh();
     loadProfiles();
   }, []);
+
+  // 筛选变化时重置分页
+  useEffect(() => {
+    setDisplayCount(PHOTOS_PER_PAGE);
+  }, [selectedTag, selectedMonth]);
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -130,22 +234,33 @@ export default function PhotosPage() {
     });
   }, [sorted, selectedTag, selectedMonth]);
 
+  // 分页显示的照片
+  const displayedPhotos = useMemo(() => {
+    return filtered.slice(0, displayCount);
+  }, [filtered, displayCount]);
+
+  const hasMore = displayedPhotos.length < filtered.length;
+
   const preview = useMemo(() => {
     if (!previewId) return null;
     return items.find((p) => p.id === previewId) ?? null;
   }, [items, previewId]);
 
-  // 获取显示名字
-  const getDisplayName = (role: "A" | "B") => {
-    const profile = profiles?.[role];
-    return profile?.nickname || profile?.name || (role === "A" ? "👦 A" : "👧 B");
-  };
+  // 获取显示名字（useCallback 缓存函数引用）
+  const getDisplayName = useMemo(() => {
+    return (role: "A" | "B") => {
+      const profile = profiles?.[role];
+      return profile?.nickname || profile?.name || (role === "A" ? "👦 A" : "👧 B");
+    };
+  }, [profiles]);
 
   // 获取头像
-  const getAvatar = (role: "A" | "B") => {
-    const profile = profiles?.[role];
-    return profile?.avatar;
-  };
+  const getAvatar = useMemo(() => {
+    return (role: "A" | "B") => {
+      const profile = profiles?.[role];
+      return profile?.avatar;
+    };
+  }, [profiles]);
 
   async function upload() {
     if (!file) {
@@ -189,7 +304,7 @@ export default function PhotosPage() {
       setTags("");
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }
@@ -210,10 +325,14 @@ export default function PhotosPage() {
         }
         return;
       }
-      await refresh();
+      await refresh(true);
     } finally {
       setLoading(false);
     }
+  }
+
+  function loadMore() {
+    setDisplayCount((prev) => prev + PHOTOS_PER_PAGE);
   }
 
   return (
@@ -343,88 +462,37 @@ export default function PhotosPage() {
           </div>
         )}
 
-        {/* 照片网格 */}
+        {/* 照片网格 - 分页优化 */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {filtered.map((p) => (
-            <div
+          {displayedPhotos.map((p) => (
+            <PhotoCard
               key={p.id}
-              className="group relative rounded-2xl border-2 border-pink-100 bg-white overflow-hidden shadow-sm hover:shadow-md hover:border-pink-200 transition-all cursor-pointer"
-              role="button"
-              tabIndex={0}
+              photo={p}
+              getAvatar={getAvatar}
+              getDisplayName={getDisplayName}
               onClick={() => setPreviewId(p.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setPreviewId(p.id);
-                }
+              onRemove={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                remove(p.id);
               }}
-            >
-              <div className="relative">
-                <Image
-                  src={`data:${p.contentType};base64,${p.base64}`}
-                  alt={p.caption || "photo"}
-                  className="h-36 w-full object-cover"
-                  width={600}
-                  height={400}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-pink-900/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-              <div className="p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  {getAvatar(p.uploadedByRole) ? (
-                    <Image
-                      src={getAvatar(p.uploadedByRole)!}
-                      alt={getDisplayName(p.uploadedByRole)}
-                      width={24}
-                      height={24}
-                      className="w-6 h-6 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                      p.uploadedByRole === "A" 
-                        ? "bg-gradient-to-br from-pink-400 to-pink-500 text-white" 
-                        : "bg-gradient-to-br from-pink-400 to-rose-500 text-white"
-                    }`}>
-                      {p.uploadedByRole}
-                    </div>
-                  )}
-                  <div className="text-[11px] text-pink-400">
-                    {new Date(p.createdAt).toLocaleDateString("zh-CN")}
-                  </div>
-                </div>
-                {p.caption && <div className="text-sm text-pink-900 line-clamp-1 mb-2">{p.caption}</div>}
-                {p.tags?.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {p.tags.slice(0, 2).map((t) => (
-                      <span key={t} className="rounded-full bg-pink-100 px-2 py-0.5 text-[10px] text-pink-700">
-                        {t}
-                      </span>
-                    ))}
-                    {p.tags.length > 2 && (
-                      <span className="rounded-full bg-pink-50 px-2 py-0.5 text-[10px] text-pink-500">
-                        +{p.tags.length - 2}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <button
-                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 shadow-sm flex items-center justify-center text-pink-400 hover:text-pink-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
-                disabled={loading}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  remove(p.id);
-                }}
-                type="button"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
+              loading={loading}
+            />
           ))}
         </div>
+
+        {/* 加载更多 */}
+        {hasMore && (
+          <div className="mt-6 text-center">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="rounded-xl bg-pink-100 hover:bg-pink-200 px-6 py-2 text-sm text-pink-700 font-medium transition-colors disabled:opacity-60"
+            >
+              {loading ? "加载中..." : `加载更多 (${filtered.length - displayedPhotos.length} 张)`}
+            </button>
+          </div>
+        )}
 
         {filtered.length === 0 && items.length > 0 && (
           <div className="text-center py-12">
@@ -470,7 +538,7 @@ export default function PhotosPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2">
                 <div className="bg-gradient-to-br from-pink-50 to-pink-50 flex items-center justify-center">
                   <Image
-                    src={`data:${preview.contentType};base64,${preview.base64}`}
+                    src={preview.imageUrl}
                     alt={preview.caption || "photo"}
                     width={1200}
                     height={900}
@@ -519,7 +587,7 @@ export default function PhotosPage() {
                     <div className="mb-4">
                       <div className="text-xs text-pink-500 mb-2">标签</div>
                       <div className="flex flex-wrap gap-2">
-                        {preview.tags.map((t) => (
+                        {preview.tags.map((t: string) => (
                           <button
                             key={t}
                             type="button"

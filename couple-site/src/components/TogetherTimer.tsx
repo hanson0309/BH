@@ -31,17 +31,43 @@ function pad(num: number): string {
 }
 
 export default function TogetherTimer({ since }: TogetherTimerProps) {
-  // 使用函数初始化状态，避免在 effect 中同步调用 setState
-  const [time, setTime] = useState<TimeDiff>(() => calculateTimeDiff(since));
+  const [time, setTime] = useState<TimeDiff | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // 每秒更新
+    setMounted(true);
+    setTime(calculateTimeDiff(since));
+    
     const timer = setInterval(() => {
       setTime(calculateTimeDiff(since));
     }, 1000);
 
     return () => clearInterval(timer);
   }, [since]);
+
+  // 避免 hydration mismatch，首次渲染显示占位符
+  if (!mounted || !time) {
+    return (
+      <div className="grid grid-cols-4 gap-3 text-center">
+        <div className="flex flex-col items-center">
+          <div className="text-3xl sm:text-4xl font-bold text-pink-700">-</div>
+          <div className="text-xs text-pink-500 mt-1">天</div>
+        </div>
+        <div className="flex flex-col items-center">
+          <div className="text-3xl sm:text-4xl font-bold text-pink-700">-</div>
+          <div className="text-xs text-pink-500 mt-1">时</div>
+        </div>
+        <div className="flex flex-col items-center">
+          <div className="text-3xl sm:text-4xl font-bold text-pink-700">-</div>
+          <div className="text-xs text-pink-500 mt-1">分</div>
+        </div>
+        <div className="flex flex-col items-center">
+          <div className="text-3xl sm:text-4xl font-bold text-pink-700">-</div>
+          <div className="text-xs text-pink-500 mt-1">秒</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-4 gap-3 text-center">

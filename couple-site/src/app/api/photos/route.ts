@@ -26,7 +26,7 @@ export async function GET(req: Request) {
       tags: p.tags,
       takenAt: p.takenAt,
       contentType: p.contentType,
-      base64: p.base64,
+      imageUrl: `/api/photos/image?id=${p._id.toString()}`,
       width: p.width,
       height: p.height,
       createdAt: p.createdAt,

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { clearCache, globalCache } from "@/lib/globalCache";
 
 type Profile = {
   role: "A" | "B";
@@ -41,7 +42,30 @@ export default function ProfilePage() {
   const [partnerNickname, setPartnerNickname] = useState("");
   const [togetherSince, setTogetherSince] = useState("");
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
+    // 如果有缓存且不是强制刷新，直接使用缓存
+    if (!force && globalCache.profiles) {
+      const profiles = globalCache.profiles as { A?: Profile; B?: Profile };
+      // 确保缓存格式正确
+      if (profiles?.A && profiles?.B) {
+        const coupleData = globalCache.coupleData as { togetherSince: string | null } | undefined;
+        const myRole = profiles.A.role === "A" ? "A" : "B";
+        const myProfile = profiles[myRole];
+        const partnerProfile = myRole === "A" ? profiles.B : profiles.A;
+        if (myProfile && partnerProfile) {
+          setMe(myProfile);
+          setPartner(partnerProfile);
+          setName(myProfile.name || "");
+          setBirthday(myProfile.birthday || "");
+          setAvatar(myProfile.avatar || "");
+          setPartnerNickname(partnerProfile.nickname || "");
+          setTogetherSince(coupleData?.togetherSince || "");
+          setLoading(false);
+          return;
+        }
+      }
+    }
+    
     setLoading(true);
     try {
       const res = await fetch("/api/profile");
@@ -54,6 +78,14 @@ export default function ProfilePage() {
       setBirthday(data.me.birthday || "");
       setAvatar(data.me.avatar || "");
       setPartnerNickname(data.partner.nickname || "");
+      setTogetherSince(data.togetherSince || "");
+      // 存入缓存
+      const profiles = {
+        A: data.me.role === "A" ? data.me : data.partner,
+        B: data.me.role === "B" ? data.me : data.partner
+      };
+      globalCache.profiles = profiles;
+      globalCache.coupleData = { togetherSince: data.togetherSince };
     } catch (e) {
       console.error("Load failed:", e);
     } finally {
@@ -126,6 +158,9 @@ export default function ProfilePage() {
     if (!file) return;
     try {
       const base64 = await fileToBase64(file);
+
+      // 头像上传后清除缓存，强制下次重新获取
+      clearCache("profiles");
       setAvatar(base64);
       await save("avatar", base64);
     } catch {
