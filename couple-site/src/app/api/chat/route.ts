@@ -190,6 +190,12 @@ async function handleAnniversaryList(session: any) {
 async function handleDiarySummary(session: any) {
   await connectToDatabase();
   
+  const couple = await CoupleModel.findById(session.coupleId).lean();
+  const profileA = couple?.memberProfiles?.["A"] || { name: "A" };
+  const profileB = couple?.memberProfiles?.["B"] || { name: "B" };
+  const nameA = profileA.name || "A";
+  const nameB = profileB.name || "B";
+  
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
@@ -211,7 +217,7 @@ async function handleDiarySummary(session: any) {
   const moodText = avgMoodNum >= 4 ? "非常开心" : avgMoodNum >= 3 ? "心情不错" : "有些平淡";
   
   return { 
-    reply: `📊 最近30天日记总结：\n\n📝 共记录 ${entries.length} 篇日记\n💑 A写了 ${aEntries} 篇，B写了 ${bEntries} 篇\n😊 平均心情指数: ${avgMood}/5 (${moodText})\n\n💕 坚持记录，留住每一份甜蜜！`
+    reply: `📊 最近30天日记总结：\n\n📝 共记录 ${entries.length} 篇日记\n💑 ${nameA}写了 ${aEntries} 篇，${nameB}写了 ${bEntries} 篇\n😊 平均心情指数: ${avgMood}/5 (${moodText})\n\n💕 坚持记录，留住每一份甜蜜！`
   };
 }
 
@@ -267,6 +273,12 @@ async function handleCapsuleList(session: any) {
 async function handlePhotoList(session: any) {
   await connectToDatabase();
   
+  const couple = await CoupleModel.findById(session.coupleId).lean();
+  const profileA = couple?.memberProfiles?.["A"] || { name: "A" };
+  const profileB = couple?.memberProfiles?.["B"] || { name: "B" };
+  const nameA = profileA.name || "A";
+  const nameB = profileB.name || "B";
+  
   const photos = await PhotoModel.find({ coupleId: session.coupleId })
     .sort({ createdAt: -1 })
     .limit(10)
@@ -280,7 +292,7 @@ async function handlePhotoList(session: any) {
   const bPhotos = photos.filter((p: any) => p.uploadedByRole === "B").length;
   
   return { 
-    reply: `📸 照片墙共有 ${photos.length} 张照片\n\n💑 A上传了 ${aPhotos} 张\n💑 B上传了 ${bPhotos} 张\n\n💕 最近一张：${photos[0].caption || "无标题"}\n\n快去照片墙查看更多美好回忆吧！`,
+    reply: `📸 照片墙共有 ${photos.length} 张照片\n\n💑 ${nameA}上传了 ${aPhotos} 张\n💑 ${nameB}上传了 ${bPhotos} 张\n\n💕 最近一张：${photos[0].caption || "无标题"}\n\n快去照片墙查看更多美好回忆吧！`,
     action: "navigate_photos"
   };
 }
