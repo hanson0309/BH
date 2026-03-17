@@ -29,13 +29,10 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json()) as { title?: string; date?: string; recurring?: boolean };
-  console.log("Received body:", body); // 调试日志
   
   const title = body.title?.trim();
   const dateStr = body.date?.trim();
   const recurring = body.recurring ?? false;
-  
-  console.log("Parsed values:", { title, dateStr, recurring }); // 调试日志
   
   if (!title || !dateStr) return NextResponse.json({ error: "invalid_input" }, { status: 400 });
 

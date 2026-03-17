@@ -20,12 +20,6 @@ export async function POST() {
     { $set: { [fieldName]: new Date() } }
   );
 
-  console.log(`Heartbeat: ${session.role} -> ${fieldName}, modified: ${result.modifiedCount}, matched: ${result.matchedCount}`);
-
-  // 立即验证是否保存成功
-  const verify = await CoupleModel.findById(session.coupleId).lean();
-  console.log(`Verify ${fieldName}:`, verify?.[fieldName]);
-
   return NextResponse.json({ ok: true, role: session.role });
 }
 
@@ -50,8 +44,6 @@ export async function GET() {
   // 获取伴侣的名字
   const partnerProfile = couple.memberProfiles?.[partnerRole];
   const partnerName = partnerProfile?.name || partnerProfile?.nickname || `TA (${partnerRole})`;
-
-  console.log(`Check presence for ${partnerName}:`, partnerLastSeen);
 
   // 判断在线状态：2分钟内活跃视为在线
   const now = new Date();

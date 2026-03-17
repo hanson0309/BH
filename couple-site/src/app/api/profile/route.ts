@@ -46,7 +46,9 @@ export async function GET() {
     // 如果已经是 URL（不是 base64），直接使用
     if (!avatar.startsWith("data:")) return avatar;
     // 返回 API URL，前端用 <img> 标签加载
-    return `/api/avatar?role=${role}`;
+    // 注意：/api/avatar 本身会强缓存（1年），因此必须通过版本参数让头像更新后 URL 改变
+    const v = couple.updatedAt ? new Date(couple.updatedAt as unknown as string).getTime() : Date.now();
+    return `/api/avatar?role=${role}&v=${v}`;
   };
 
 

@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useRef, useCallback } from "react";
+import { clearAllCache } from "@/lib/globalCache";
 
 const NAV_ITEMS = [
   { href: "/", label: "首页", icon: "🏠" },
@@ -37,6 +38,7 @@ export default function QuickNav() {
     if (detailsRef.current) {
       detailsRef.current.open = false;
     }
+    clearAllCache();
     window.location.href = "/api/logout";
   }
 

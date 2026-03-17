@@ -84,4 +84,8 @@ export function clearAllCache() {
   globalCache.diary.clear();
   globalCache.profiles = null;
   globalCache.coupleData = null;
+
+  // 清除进行中的请求，避免登出/切换账号后复用旧的 pending promise
+  globalCache._pending.profiles = null;
+  globalCache._pending.coupleData = null;
 }

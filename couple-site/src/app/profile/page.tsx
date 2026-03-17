@@ -70,7 +70,9 @@ export default function ProfilePage() {
       const res = await fetch("/api/profile");
       if (!res.ok) throw new Error("unauthorized");
       const data = await res.json();
-      console.log("Loaded data:", data); // 调试
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Loaded data:", data); // 调试
+      }
       setMe(data.me);
       setPartner(data.partner);
       setName(data.me.name || "");
@@ -103,7 +105,9 @@ export default function ProfilePage() {
     setSaving(true);
     setMessage(null);
     try {
-      console.log("Saving:", field, value.substring(0, 20) + "..."); // 调试
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Saving:", field, value.substring(0, 20) + "..."); // 调试
+      }
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "content-type": "application/json" },
@@ -117,7 +121,9 @@ export default function ProfilePage() {
       
       // 直接使用返回的数据更新状态
       const data = await res.json();
-      console.log("Saved data returned:", data); // 调试
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Saved data returned:", data); // 调试
+      }
       setMe(data.me);
       setPartner(data.partner);
       

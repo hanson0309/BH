@@ -34,16 +34,32 @@ export default function TogetherTimer({ since }: TogetherTimerProps) {
   const [time, setTime] = useState<TimeDiff | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsVisible(document.visibilityState === "visible");
+    };
+    handleVisibilityChange();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
   useEffect(() => {
     setMounted(true);
     setTime(calculateTimeDiff(since));
-    
+
+    // 页面不可见时不启动/暂停更新，减少耗电
+    if (!isVisible) {
+      return;
+    }
+
     const timer = setInterval(() => {
       setTime(calculateTimeDiff(since));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [since]);
+  }, [since, isVisible]);
 
   // 避免 hydration mismatch，首次渲染显示占位符
   if (!mounted || !time) {
