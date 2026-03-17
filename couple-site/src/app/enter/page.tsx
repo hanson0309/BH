@@ -46,7 +46,10 @@ function FloatingParticle({ delay, left, color }: { delay: string; left: string;
 
 export default function EnterPage() {
   const router = useRouter();
-  const [code, setCode] = useState("");
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const initialCode = searchParams?.get("code") || "";
+  
+  const [code, setCode] = useState(initialCode);
   const [role, setRole] = useState<"A" | "B">("A");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -224,7 +227,7 @@ export default function EnterPage() {
                   )}
                 </div>
                 <div className={`font-bold text-lg mb-1 ${role === "B" ? "text-pink-700" : "text-gray-600"}`}>
-                  {profiles?.B?.name || "静香"}
+                  {profiles?.B?.name || "Bernice"}
                 </div>
               </button>
             </div>
