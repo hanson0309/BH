@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { globalCache, fetchProfiles } from "@/lib/globalCache";
+import { apiFetchJson } from "@/lib/apiClient";
 
 // 爱心图标
 function HeartIcon({ className }: { className?: string }) {
@@ -86,15 +87,13 @@ export default function DiaryPage() {
 
     setLoading(true);
     try {
-      const res = await fetch(`/api/diary?year=${currentYear}&month=${currentMonth}`);
-      if (!res.ok) {
-        setError("获取日记失败");
-        return;
-      }
-      const data = (await res.json()) as { diaries: Diary[] };
+      const data = await apiFetchJson<{ diaries: Diary[] }>(
+        `/api/diary?year=${currentYear}&month=${currentMonth}`
+      );
       // 存入缓存
       globalCache.diary.set(cacheKey, data.diaries);
       setDiaries(data.diaries);
+      setError(null);
     } catch {
       setError("网络错误");
     } finally {
@@ -176,7 +175,7 @@ export default function DiaryPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/diary", {
+      await apiFetchJson<unknown>("/api/diary", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -186,18 +185,10 @@ export default function DiaryPage() {
         }),
       });
 
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          setError((data as { error?: string }).error || "保存失败");
-        } else {
-          setError("保存失败");
-        }
-        return;
-      }
-
       await refresh(true); // 强制刷新，更新当前月份缓存
       closeModal();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "保存失败");
     } finally {
       setLoading(false);
     }
@@ -210,17 +201,19 @@ export default function DiaryPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/diary?date=${selectedDate}`, {
+      await apiFetchJson<unknown>(`/api/diary?date=${selectedDate}`, {
         method: "DELETE",
       });
-
-      if (!res.ok && res.status !== 404) {
-        setError("删除失败");
-        return;
-      }
-
       await refresh(true); // 强制刷新，更新当前月份缓存
       closeModal();
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      if (err?.status === 404) {
+        await refresh(true);
+        closeModal();
+        return;
+      }
+      setError(err instanceof Error ? err.message : "删除失败");
     } finally {
       setLoading(false);
     }

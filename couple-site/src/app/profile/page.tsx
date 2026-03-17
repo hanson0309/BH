@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { clearCache, globalCache } from "@/lib/globalCache";
+import { apiFetchJson } from "@/lib/apiClient";
 
 type Profile = {
   role: "A" | "B";
@@ -67,9 +68,11 @@ export default function ProfilePage() {
     
     setLoading(true);
     try {
-      const res = await fetch("/api/profile");
-      if (!res.ok) throw new Error("unauthorized");
-      const data = await res.json();
+      const data = await apiFetchJson<{
+        me: Profile;
+        partner: Profile;
+        togetherSince: string | null;
+      }>("/api/profile");
       if (process.env.NODE_ENV !== "production") {
         console.log("Loaded data:", data); // 调试
       }
@@ -108,19 +111,15 @@ export default function ProfilePage() {
       if (process.env.NODE_ENV !== "production") {
         console.log("Saving:", field, value.substring(0, 20) + "..."); // 调试
       }
-      const res = await fetch("/api/profile", {
+      const data = await apiFetchJson<{
+        me: Profile;
+        partner: Profile;
+        togetherSince: string | null;
+      }>("/api/profile", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ [field]: value }),
       });
-      if (!res.ok) {
-        const err = await res.text();
-        console.error("Save failed:", err);
-        throw new Error("save_failed");
-      }
-      
-      // 直接使用返回的数据更新状态
-      const data = await res.json();
       if (process.env.NODE_ENV !== "production") {
         console.log("Saved data returned:", data); // 调试
       }
@@ -137,7 +136,7 @@ export default function ProfilePage() {
       setMessage("已保存 ✓");
     } catch (e) {
       console.error("Save error:", e);
-      setMessage("保存失败");
+      setMessage(e instanceof Error ? e.message : "保存失败");
     } finally {
       setSaving(false);
     }

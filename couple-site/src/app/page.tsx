@@ -10,6 +10,8 @@ import TogetherTimer from "@/components/TogetherTimer";
 
 import { globalCache, clearCache } from "@/lib/globalCache";
 
+import { apiFetchJson } from "@/lib/apiClient";
+
 
 
 type Profile = {
@@ -134,17 +136,13 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("/api/anniversaries");
+      const data = await apiFetchJson<{ anniversaries: Anniversary[] }>(
+        "/api/anniversaries"
+      );
 
-      if (res.ok) {
+      globalCache.anniversaries = data.anniversaries;
 
-        const data = await res.json();
-
-        globalCache.anniversaries = data.anniversaries;
-
-        setAnniversaries(data.anniversaries);
-
-      }
+      setAnniversaries(data.anniversaries);
 
     } catch {
 
@@ -164,15 +162,9 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("/api/photos");
+      const data = await apiFetchJson<{ photos: unknown[] }>("/api/photos");
 
-      if (res.ok) {
-
-        const data = await res.json();
-
-        globalCache.photos = data.photos;
-
-      }
+      globalCache.photos = data.photos;
 
     } catch {
 
@@ -196,27 +188,21 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("/api/posts");
-
-      if (!res.ok) {
-
-        if (res.status === 401) {
-
-          router.push("/enter");
-
-        }
-
-        return;
-
-      }
-
-      const data = await res.json();
+      const data = await apiFetchJson<{ posts: Post[] }>("/api/posts");
 
       globalCache.posts = data.posts;
 
       setPosts(data.posts);
 
-    } catch {
+    } catch (e) {
+
+      const err = e as Error & { status?: number };
+
+      if (err?.status === 401) {
+
+        router.push("/enter");
+
+      }
 
       // 忽略错误
 
@@ -246,31 +232,29 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("/api/profile");
+      const data = await apiFetchJson<{
+        me: Profile;
+        partner: Profile;
+        togetherSince: string | null;
+      }>("/api/profile");
 
-      if (res.ok) {
+      const profiles = {
 
-        const data = await res.json();
+        A: data.me.role === "A" ? data.me : data.partner,
 
-        const profiles = {
+        B: data.me.role === "B" ? data.me : data.partner
 
-          A: data.me.role === "A" ? data.me : data.partner,
+      };
 
-          B: data.me.role === "B" ? data.me : data.partner
+      globalCache.profiles = profiles;
 
-        };
+      globalCache.coupleData = { togetherSince: data.togetherSince };
 
-        globalCache.profiles = profiles;
+      setProfiles(profiles);
 
-        globalCache.coupleData = { togetherSince: data.togetherSince };
+      setMyRole(data.me.role);
 
-        setProfiles(profiles);
-
-        setMyRole(data.me.role);
-
-        setTogetherSince(data.togetherSince);
-
-      }
+      setTogetherSince(data.togetherSince);
 
     } catch {
 
@@ -322,7 +306,7 @@ export default function Home() {
 
     try {
 
-      const res = await fetch("/api/posts", {
+      await apiFetchJson<unknown>("/api/posts", {
 
         method: "POST",
 
@@ -332,8 +316,6 @@ export default function Home() {
 
       });
 
-      if (!res.ok) throw new Error("failed");
-
       
 
       setText("");
@@ -342,9 +324,11 @@ export default function Home() {
 
       await loadPosts(true);
 
-    } catch {
+    } catch (e) {
 
-      alert("发布失败，请重试");
+      const msg = e instanceof Error ? e.message : "发布失败，请重试";
+
+      alert(msg || "发布失败，请重试");
 
     } finally {
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetchJson } from "@/lib/apiClient";
 
 type Profile = {
   name: string;
@@ -54,45 +55,45 @@ export default function EnterPage() {
 
   // 加载资料
   useEffect(() => {
-    async function loadProfiles() {
-      try {
-        const res = await fetch("/api/profile", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ inviteCode: "0302" }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProfiles(data);
-        }
-      } catch {
-        // 忽略错误，使用默认显示
-      }
+    // 根据输入的邀请码预览头像/名字，避免硬编码 inviteCode
+    const trimmed = code.trim();
+    if (!trimmed) {
+      setProfiles(null);
+      return;
     }
-    loadProfiles();
-  }, []);
+
+    const timer = setTimeout(async () => {
+      try {
+        const data = await apiFetchJson<{ A: Profile; B: Profile }>(
+          "/api/profile",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ inviteCode: trimmed }),
+          }
+        );
+        setProfiles(data);
+      } catch {
+        setProfiles(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [code]);
 
   async function submit() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/enter", {
+      await apiFetchJson<unknown>("/api/enter", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ code, role }),
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as unknown;
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
       router.push("/");
       router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }

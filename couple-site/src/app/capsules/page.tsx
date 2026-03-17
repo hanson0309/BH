@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { globalCache, fetchProfiles } from "@/lib/globalCache";
+import { apiFetchJson } from "@/lib/apiClient";
 
 // 信封图标
 function EnvelopeIcon({ className }: { className?: string }) {
@@ -54,14 +55,14 @@ export default function CapsulesPage() {
       setItems(globalCache.capsules as Capsule[]);
       return;
     }
-    const res = await fetch("/api/capsules");
-    if (!res.ok) {
-      setError("unauthorized");
-      return;
+    try {
+      const data = await apiFetchJson<{ capsules: Capsule[] }>("/api/capsules");
+      globalCache.capsules = data.capsules;
+      setItems(data.capsules);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "unauthorized");
     }
-    const data = (await res.json()) as { capsules: Capsule[] };
-    globalCache.capsules = data.capsules;
-    setItems(data.capsules);
   }
 
   // 获取用户资料（使用共享函数，自动处理重复请求）
@@ -103,24 +104,16 @@ export default function CapsulesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/capsules", {
+      await apiFetchJson<unknown>("/api/capsules", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title, content, unlockAt: new Date(unlockAt).toISOString() }),
       });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
       setTitle("");
       setContent("");
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }
@@ -130,18 +123,12 @@ export default function CapsulesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/capsules?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
+      await apiFetchJson<unknown>(`/api/capsules?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }

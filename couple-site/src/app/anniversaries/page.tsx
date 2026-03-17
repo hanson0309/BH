@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { globalCache } from "@/lib/globalCache";
+import { apiFetchJson } from "@/lib/apiClient";
 
 // 爱心图标
 function HeartIcon({ className }: { className?: string }) {
@@ -113,14 +114,16 @@ export default function AnniversariesPage() {
       setItems(globalCache[CACHE_KEY] as Anniversary[]);
       return;
     }
-    const res = await fetch("/api/anniversaries");
-    if (!res.ok) {
-      setError("unauthorized");
-      return;
+    try {
+      const data = await apiFetchJson<{ anniversaries: Anniversary[] }>(
+        "/api/anniversaries"
+      );
+      globalCache[CACHE_KEY] = data.anniversaries;
+      setItems(data.anniversaries);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "unauthorized");
     }
-    const data = (await res.json()) as { anniversaries: Anniversary[] };
-    globalCache[CACHE_KEY] = data.anniversaries;
-    setItems(data.anniversaries);
   }
 
   const initialized = useRef(false);
@@ -151,26 +154,18 @@ export default function AnniversariesPage() {
         return;
       }
       
-      const res = await fetch("/api/anniversaries", {
+      await apiFetchJson<unknown>("/api/anniversaries", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ title, date: dateToSend, recurring }),
       });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
       setTitle("");
       setDate("");
       setMonthDay("");
       setRecurring(false);
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }
@@ -180,18 +175,12 @@ export default function AnniversariesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/anniversaries?idx=${idx}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
+      await apiFetchJson<unknown>(`/api/anniversaries?idx=${idx}`, {
+        method: "DELETE",
+      });
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }

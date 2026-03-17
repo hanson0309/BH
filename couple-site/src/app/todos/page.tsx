@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { globalCache, fetchProfiles } from "@/lib/globalCache";
+import { apiFetchJson } from "@/lib/apiClient";
 
 // 爱心图标
 function HeartIcon({ className }: { className?: string }) {
@@ -42,14 +43,14 @@ export default function TodosPage() {
       setItems(globalCache.todos as Todo[]);
       return;
     }
-    const res = await fetch("/api/todos");
-    if (!res.ok) {
-      setError("unauthorized");
-      return;
+    try {
+      const data = await apiFetchJson<{ todos: Todo[] }>("/api/todos");
+      globalCache.todos = data.todos;
+      setItems(data.todos);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "unauthorized");
     }
-    const data = (await res.json()) as { todos: Todo[] };
-    globalCache.todos = data.todos;
-    setItems(data.todos);
   }
 
   // 获取用户资料（使用共享函数，自动处理重复请求）
@@ -104,23 +105,15 @@ export default function TodosPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/todos", {
+      await apiFetchJson<unknown>("/api/todos", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
       setText("");
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }
@@ -130,22 +123,14 @@ export default function TodosPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/todos", {
+      await apiFetchJson<unknown>("/api/todos", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id, done }),
       });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }
@@ -155,18 +140,12 @@ export default function TodosPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/todos?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
+      await apiFetchJson<unknown>(`/api/todos?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }

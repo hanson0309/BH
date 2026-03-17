@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { globalCache, fetchProfiles } from "@/lib/globalCache";
+import { apiFetchJson } from "@/lib/apiClient";
 
 // 爱心图标
 function HeartIcon({ className }: { className?: string }) {
@@ -163,15 +164,15 @@ export default function PhotosPage() {
       setItems(globalCache.photos as Photo[]);
       return;
     }
-    const res = await fetch("/api/photos");
-    if (!res.ok) {
-      setError("unauthorized");
-      return;
+    try {
+      const data = await apiFetchJson<{ photos: Photo[] }>("/api/photos");
+      globalCache.photos = data.photos;
+      setItems(data.photos);
+      setDisplayCount(PHOTOS_PER_PAGE);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "unauthorized");
     }
-    const data = (await res.json()) as { photos: Photo[] };
-    globalCache.photos = data.photos;
-    setItems(data.photos);
-    setDisplayCount(PHOTOS_PER_PAGE);
   }
 
   // 获取用户资料（使用共享函数，自动处理重复请求）
@@ -274,7 +275,7 @@ export default function PhotosPage() {
         .filter(Boolean)
         .slice(0, 10);
 
-      const res = await fetch("/api/photos", {
+      await apiFetchJson<unknown>("/api/photos", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -285,22 +286,13 @@ export default function PhotosPage() {
         }),
       });
 
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
-
       setCaption("");
       setTags("");
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }
@@ -310,18 +302,12 @@ export default function PhotosPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/photos?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data: unknown = await res.json().catch(() => null);
-        if (data && typeof data === "object" && "error" in data) {
-          const err = (data as { error?: unknown }).error;
-          setError(typeof err === "string" ? err : "error");
-        } else {
-          setError("error");
-        }
-        return;
-      }
+      await apiFetchJson<unknown>(`/api/photos?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
       await refresh(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "error");
     } finally {
       setLoading(false);
     }

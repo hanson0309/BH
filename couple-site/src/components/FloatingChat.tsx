@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { clearAllCache } from "@/lib/globalCache";
 
 interface Message {
@@ -19,6 +19,7 @@ export default function FloatingChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   const isEnterPage = pathname === "/enter";
 
@@ -63,6 +64,11 @@ export default function FloatingChat() {
       });
 
       if (!res.ok) {
+        const data: unknown = await res.json().catch(() => null);
+        if (data && typeof data === "object" && "error" in data) {
+          const err = (data as { error?: unknown }).error;
+          throw new Error(typeof err === "string" ? err : `请求失败: ${res.status}`);
+        }
         throw new Error(`请求失败: ${res.status}`);
       }
 
@@ -79,10 +85,15 @@ export default function FloatingChat() {
       }
       if (data.action === "clear_cache") {
         clearAllCache();
-        window.location.reload();
+        window.dispatchEvent(
+          new CustomEvent("refreshData", { detail: { type: "all" } })
+        );
+        setIsOpen(false);
+        router.refresh();
       }
     } catch (err) {
-      setError("发送消息失败，请重试");
+      const msg = err instanceof Error ? err.message : "发送消息失败，请重试";
+      setError(msg || "发送消息失败，请重试");
       console.error("Chat error:", err);
     } finally {
       setLoading(false);
