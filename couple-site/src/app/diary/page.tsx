@@ -413,12 +413,9 @@ export default function DiaryPage() {
                         {day}
                       </span>
                       {diary && (
-                        <div className="mt-0.5 flex items-center gap-0.5">
-                          {diary.mood && (
-                            <span className="text-xs">{diary.mood}</span>
-                          )}
-                          <HeartIcon className="w-3 h-3 text-rose-400" />
-                        </div>
+                        <span className="text-lg">
+                          {diary.mood || "📝"}
+                        </span>
                       )}
                     </div>
                   </button>
