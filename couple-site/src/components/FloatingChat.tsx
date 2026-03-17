@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { clearAllCache } from "@/lib/globalCache";
 
 interface Message {
@@ -17,6 +18,12 @@ export default function FloatingChat() {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+
+  // 登录页面不显示 AI 聊天
+  if (pathname === "/enter") {
+    return null;
+  }
 
   // 自动滚动到底部
   useEffect(() => {

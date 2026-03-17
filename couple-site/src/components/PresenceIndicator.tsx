@@ -3,6 +3,7 @@
 
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 
 
@@ -20,6 +21,36 @@ interface PartnerPresence {
 
 
 
+// 节流函数 - 限制函数执行频率
+
+function throttle<T extends (...args: unknown[]) => unknown>(
+
+  func: T,
+
+  limit: number
+
+): (...args: Parameters<T>) => void {
+
+  let inThrottle = false;
+
+  return (...args: Parameters<T>) => {
+
+    if (!inThrottle) {
+
+      func(...args);
+
+      inThrottle = true;
+
+      setTimeout(() => (inThrottle = false), limit);
+
+    }
+
+  };
+
+}
+
+
+
 export default function PresenceIndicator() {
 
   const [presence, setPresence] = useState<PartnerPresence | null>(null);
@@ -27,6 +58,20 @@ export default function PresenceIndicator() {
   const [error, setError] = useState<string | null>(null);
 
   const initialized = useRef(false);
+
+  const lastHeartbeat = useRef<number>(0);
+
+  const isVisible = useRef(true);
+
+  const pathname = usePathname();
+
+  // 登录页面不显示 PresenceIndicator
+
+  if (pathname === "/enter") {
+
+    return null;
+
+  }
 
 
 
@@ -38,6 +83,8 @@ export default function PresenceIndicator() {
 
       await fetch("/api/presence", { method: "POST" });
 
+      lastHeartbeat.current = Date.now();
+
     } catch (err) {
 
       console.error("Heartbeat failed:", err);
@@ -48,9 +95,41 @@ export default function PresenceIndicator() {
 
 
 
+
+
+  // 节流版心跳 - 最小间隔 2 分钟
+
+  const throttledHeartbeat = useCallback(
+
+    throttle(() => {
+
+      // 只有距离上次心跳超过 1 分 50 秒才发送
+
+      if (Date.now() - lastHeartbeat.current > 110000) {
+
+        sendHeartbeat();
+
+      }
+
+    }, 120000),
+
+    [sendHeartbeat]
+
+  );
+
+
+
+
+
   // 获取伴侣的在线状态
 
   const checkPartnerStatus = useCallback(async () => {
+
+    // 页面不可见时不检查
+
+    if (!isVisible.current) return;
+
+    
 
     try {
 
@@ -58,7 +137,7 @@ export default function PresenceIndicator() {
 
       if (!res.ok) {
 
-        if (res.status === 401) return; // 未登录，静默处理
+        if (res.status === 401) return;
 
         throw new Error(`Failed to fetch: ${res.status}`);
 
@@ -74,17 +153,15 @@ export default function PresenceIndicator() {
 
       console.error("Failed to check partner status:", err);
 
-      setError("检查状态失败");
-
     }
 
   }, []);
 
 
 
-  useEffect(() => {
 
-    // 防止 React 18 StrictMode 双重执行
+
+  useEffect(() => {
 
     if (initialized.current) return;
 
@@ -92,7 +169,7 @@ export default function PresenceIndicator() {
 
     
 
-    // 立即发送一次心跳
+    // 立即执行一次
 
     sendHeartbeat();
 
@@ -100,23 +177,39 @@ export default function PresenceIndicator() {
 
 
 
-    // 每30秒发送一次心跳
-
-    const heartbeatInterval = setInterval(sendHeartbeat, 30000);
 
 
+    // 每2分钟轮询一次
 
-    // 每10秒检查一次伴侣状态
+    const heartbeatInterval = setInterval(() => {
 
-    const checkInterval = setInterval(checkPartnerStatus, 10000);
+      if (isVisible.current) {
+
+        sendHeartbeat();
+
+      }
+
+    }, 120000);
 
 
 
-    // 页面可见性变化时更新状态
+
+
+    const checkInterval = setInterval(checkPartnerStatus, 120000);
+
+
+
+
+
+    // 页面可见性变化
 
     const handleVisibilityChange = () => {
 
-      if (document.visibilityState === "visible") {
+      const visible = document.visibilityState === "visible";
+
+      isVisible.current = visible;
+
+      if (visible) {
 
         sendHeartbeat();
 
@@ -128,17 +221,23 @@ export default function PresenceIndicator() {
 
 
 
+
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
 
 
-    // 页面活动时发送心跳
+
+
+    // 页面活动事件 - 使用节流，最多每2分钟一次
 
     const handleActivity = () => {
 
-      sendHeartbeat();
+      throttledHeartbeat();
 
     };
+
+
 
 
 
@@ -146,7 +245,9 @@ export default function PresenceIndicator() {
 
     window.addEventListener("keydown", handleActivity);
 
-    window.addEventListener("scroll", handleActivity);
+    window.addEventListener("scroll", handleActivity, { passive: true });
+
+
 
 
 
@@ -166,7 +267,9 @@ export default function PresenceIndicator() {
 
     };
 
-  }, [sendHeartbeat, checkPartnerStatus]);
+  }, [sendHeartbeat, checkPartnerStatus, throttledHeartbeat]);
+
+
 
 
 
@@ -188,7 +291,13 @@ export default function PresenceIndicator() {
 
 
 
+
+
+
+
   const displayName = presence.partnerName;
+
+
 
 
 
@@ -233,4 +342,3 @@ export default function PresenceIndicator() {
   );
 
 }
-
