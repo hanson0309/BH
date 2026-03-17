@@ -75,7 +75,7 @@ const PhotoCard = React.memo(function PhotoCard({
       <div className="p-3">
         <div className="flex items-center gap-2 mb-2">
           {getAvatar(photo.uploadedByRole) ? (
-            <Image
+            <img
               src={getAvatar(photo.uploadedByRole)!}
               alt={getDisplayName(photo.uploadedByRole)}
               width={24}
@@ -537,22 +537,18 @@ export default function PhotosPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2">
                 <div className="bg-gradient-to-br from-pink-50 to-pink-50 flex items-center justify-center">
-                  <Image
+                  <img
                     src={preview.imageUrl}
                     alt={preview.caption || "photo"}
-                    width={1200}
-                    height={900}
                     className="max-h-[60vh] w-auto object-contain"
                   />
                 </div>
                 <div className="p-6">
                   <div className="flex items-center gap-3 mb-4">
                     {getAvatar(preview.uploadedByRole) ? (
-                      <Image
+                      <img
                         src={getAvatar(preview.uploadedByRole)!}
                         alt={getDisplayName(preview.uploadedByRole)}
-                        width={40}
-                        height={40}
                         className="w-10 h-10 rounded-full object-cover"
                       />
                     ) : (

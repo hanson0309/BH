@@ -281,11 +281,9 @@ export default function TodosPage() {
                       <span>创建者：</span>
                       <div className="flex items-center gap-1">
                         {getAvatar(t.createdByRole) ? (
-                          <Image
+                          <img
                             src={getAvatar(t.createdByRole)!}
                             alt={getDisplayName(t.createdByRole)}
-                            width={16}
-                            height={16}
                             className="w-4 h-4 rounded-full object-cover"
                           />
                         ) : (
@@ -298,11 +296,9 @@ export default function TodosPage() {
                           <span>✓ 完成者：</span>
                           <div className="flex items-center gap-1">
                             {getAvatar(t.doneByRole) ? (
-                              <Image
+                              <img
                                 src={getAvatar(t.doneByRole)!}
                                 alt={getDisplayName(t.doneByRole)}
-                                width={16}
-                                height={16}
                                 className="w-4 h-4 rounded-full object-cover"
                               />
                             ) : (

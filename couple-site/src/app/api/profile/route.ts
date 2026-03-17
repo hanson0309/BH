@@ -40,20 +40,13 @@ export async function GET() {
 
 
 
-  // 生成头像 URL（如果不是 base64 则保留原值）
-
+  // 生成头像 URL - 使用 API 路由（前端用 <img> 标签加载）
   const getAvatarUrl = (avatar: string, role: "A" | "B") => {
-
     if (!avatar) return "";
-
     // 如果已经是 URL（不是 base64），直接使用
-
     if (!avatar.startsWith("data:")) return avatar;
-
-    // 否则生成 API URL
-
+    // 返回 API URL，前端用 <img> 标签加载
     return `/api/avatar?role=${role}`;
-
   };
 
 
@@ -134,15 +127,19 @@ export async function POST(request: Request) {
 
 
 
-  // 生成头像 URL
+  // 生成头像 URL - 登录页面直接返回 base64
 
   const getAvatarUrl = (avatar: string, role: "A" | "B") => {
 
     if (!avatar) return "";
 
+    // 如果已经是 URL（不是 base64），直接使用
+
     if (!avatar.startsWith("data:")) return avatar;
 
-    return `/api/avatar?role=${role}`;
+    // 登录页面直接返回 base64 数据，不通过 API 路由
+
+    return avatar;
 
   };
 
