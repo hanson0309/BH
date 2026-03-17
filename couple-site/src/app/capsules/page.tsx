@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 
 // 信封图标
 function EnvelopeIcon({ className }: { className?: string }) {

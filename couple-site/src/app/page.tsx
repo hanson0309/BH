@@ -6,8 +6,6 @@ import { useEffect, useRef, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
-import Image from "next/image";
-
 import TogetherTimer from "@/components/TogetherTimer";
 
 import { globalCache, clearCache } from "@/lib/globalCache";

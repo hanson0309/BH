@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import Image from "next/image";
 
 // 爱心图标
 function HeartIcon({ className }: { className?: string }) {

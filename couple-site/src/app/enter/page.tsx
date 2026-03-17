@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 
 type Profile = {
   name: string;
@@ -171,7 +170,11 @@ export default function EnterPage() {
                 
                 <div className="mb-3 transform transition-transform duration-300">
                   {profiles?.A?.avatar ? (
-                    <Image src={profiles.A.avatar} alt="A" width={80} height={80} className="w-20 h-20 rounded-full mx-auto object-cover border-4 border-white shadow-lg" />
+                    <img
+                      src={profiles.A.avatar}
+                      alt="A"
+                      className="w-20 h-20 rounded-full mx-auto object-cover border-4 border-white shadow-lg"
+                    />
                   ) : (
                     <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-4xl border-4 border-white shadow-lg bg-gradient-to-br from-blue-400 to-blue-600">👦</div>
                   )}
@@ -210,7 +213,11 @@ export default function EnterPage() {
                 
                 <div className="mb-3 transform transition-transform duration-300">
                   {profiles?.B?.avatar ? (
-                    <Image src={profiles.B.avatar} alt="B" width={80} height={80} className="w-20 h-20 rounded-full mx-auto object-cover border-4 border-white shadow-lg" />
+                    <img
+                      src={profiles.B.avatar}
+                      alt="B"
+                      className="w-20 h-20 rounded-full mx-auto object-cover border-4 border-white shadow-lg"
+                    />
                   ) : (
                     <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center text-4xl border-4 border-white shadow-lg bg-gradient-to-br from-pink-400 to-rose-500">👧</div>
                   )}

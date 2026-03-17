@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { clearCache, globalCache } from "@/lib/globalCache";
 
 type Profile = {
@@ -245,11 +244,9 @@ export default function ProfilePage() {
               <div className="relative">
                 <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-pink-200 bg-pink-50">
                   {avatar ? (
-                    <Image
+                    <img
                       src={avatar}
                       alt="avatar"
-                      width={96}
-                      height={96}
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -360,11 +357,9 @@ export default function ProfilePage() {
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-pink-200 bg-pink-50">
                   {partner.avatar ? (
-                    <Image
+                    <img
                       src={partner.avatar}
                       alt="partner avatar"
-                      width={64}
-                      height={64}
                       className="w-full h-full object-cover"
                     />
                   ) : (
