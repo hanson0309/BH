@@ -11,6 +11,7 @@ interface Message {
 }
 
 export default function FloatingChat() {
+  const [isMinimized, setIsMinimized] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -105,6 +106,20 @@ export default function FloatingChat() {
     setError(null);
   }
 
+  function toggleChat() {
+    if (isMinimized) {
+      setIsMinimized(false);
+      setIsOpen(true);
+    } else {
+      setIsOpen(!isOpen);
+    }
+  }
+
+  function minimizeChat() {
+    setIsOpen(false);
+    setIsMinimized(true);
+  }
+
   // 添加快捷命令
   function handleQuickCommand(command: string) {
     setInput(command);
@@ -115,15 +130,34 @@ export default function FloatingChat() {
     }, 100);
   }
 
-  if (!isOpen) {
-    if (isEnterPage) return null;
+  if (isEnterPage) return null;
+
+  // 最小化状态 - 只显示一个小圆点
+  if (isMinimized) {
     return (
       <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-lg shadow-pink-300 hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+        onClick={toggleChat}
+        className="fixed bottom-4 right-4 z-50 w-10 h-10 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-lg shadow-pink-300/50 hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
         aria-label="打开AI助手"
       >
-        <span className="text-2xl group-hover:animate-bounce">🤖</span>
+        <span className="text-lg">🤖</span>
+        {/* 未读消息提示 */}
+        {messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
+          <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+        )}
+      </button>
+    );
+  }
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={toggleChat}
+        className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-lg shadow-pink-300/50 hover:shadow-xl transition-all duration-300 flex items-center gap-2 text-white text-sm font-medium"
+        aria-label="打开AI助手"
+      >
+        <span>🤖</span>
+        <span>AI助手</span>
         {/* 未读消息提示 */}
         {messages.length > 0 && messages[messages.length - 1].role === "assistant" && (
           <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
@@ -133,8 +167,6 @@ export default function FloatingChat() {
       </button>
     );
   }
-
-  if (isEnterPage) return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl shadow-pink-200 border-2 border-pink-100 overflow-hidden animate-fadeIn">
@@ -158,12 +190,12 @@ export default function FloatingChat() {
             </svg>
           </button>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={minimizeChat}
             className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
-            title="关闭"
+            title="最小化"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
             </svg>
           </button>
         </div>
