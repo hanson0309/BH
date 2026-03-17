@@ -4,6 +4,7 @@ import "./globals.css";
 import QuickNav from "@/components/QuickNav";
 import FloatingChat from "@/components/FloatingChat";
 import PresenceIndicator from "@/components/PresenceIndicator";
+import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,6 +34,7 @@ export default function RootLayout({
           {children}
         </main>
         <FloatingChat />
+        <Analytics />
       </body>
     </html>
   );
