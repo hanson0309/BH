@@ -17,8 +17,11 @@ export default function FloatingChat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 }); // relative to bottom-right
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragStartRef = useRef({ x: 0, y: 0, posX: 0, posY: 0 });
   const pathname = usePathname();
   const router = useRouter();
 
@@ -47,6 +50,61 @@ export default function FloatingChat() {
     setLoading(false);
     setError(null);
   }, [isEnterPage]);
+
+  // 拖拽处理
+  function handleDragStart(clientX: number, clientY: number) {
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: clientX,
+      y: clientY,
+      posX: position.x,
+      posY: position.y,
+    };
+  }
+
+  function handleDragMove(clientX: number, clientY: number) {
+    if (!isDragging) return;
+    const deltaX = dragStartRef.current.x - clientX;
+    const deltaY = dragStartRef.current.y - clientY;
+    setPosition({
+      x: dragStartRef.current.posX + deltaX,
+      y: dragStartRef.current.posY + deltaY,
+    });
+  }
+
+  function handleDragEnd() {
+    setIsDragging(false);
+  }
+
+  // 鼠标事件
+  function onMouseDown(e: React.MouseEvent) {
+    if (e.target instanceof HTMLElement && e.target.closest("button, input")) return;
+    handleDragStart(e.clientX, e.clientY);
+  }
+
+  function onMouseMove(e: React.MouseEvent) {
+    handleDragMove(e.clientX, e.clientY);
+  }
+
+  function onMouseUp() {
+    handleDragEnd();
+  }
+
+  // 触摸事件
+  function onTouchStart(e: React.TouchEvent) {
+    if (e.target instanceof HTMLElement && e.target.closest("button, input")) return;
+    const touch = e.touches[0];
+    handleDragStart(touch.clientX, touch.clientY);
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    const touch = e.touches[0];
+    handleDragMove(touch.clientX, touch.clientY);
+  }
+
+  function onTouchEnd() {
+    handleDragEnd();
+  }
 
   async function sendMessage() {
     if (!input.trim() || loading) return;
@@ -132,12 +190,25 @@ export default function FloatingChat() {
 
   if (isEnterPage) return null;
 
+  const positionStyle = {
+    right: `${16 + position.x}px`,
+    bottom: `${16 + position.y}px`,
+  };
+
   // 最小化状态 - 只显示一个小圆点
   if (isMinimized) {
     return (
       <button
         onClick={toggleChat}
-        className="fixed bottom-4 right-4 z-50 w-10 h-10 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-lg shadow-pink-300/50 hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group"
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={positionStyle}
+        className={`fixed z-50 w-10 h-10 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-lg shadow-pink-300/50 hover:shadow-xl hover:scale-110 transition-all duration-300 flex items-center justify-center group ${isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab'}`}
         aria-label="打开AI助手"
       >
         <span className="text-lg">🤖</span>
@@ -153,7 +224,15 @@ export default function FloatingChat() {
     return (
       <button
         onClick={toggleChat}
-        className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-lg shadow-pink-300/50 hover:shadow-xl transition-all duration-300 flex items-center gap-2 text-white text-sm font-medium"
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={positionStyle}
+        className={`fixed z-50 px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-500 rounded-full shadow-lg shadow-pink-300/50 hover:shadow-xl transition-all duration-300 flex items-center gap-2 text-white text-sm font-medium ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         aria-label="打开AI助手"
       >
         <span>🤖</span>
@@ -169,9 +248,21 @@ export default function FloatingChat() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl shadow-pink-200 border-2 border-pink-100 overflow-hidden animate-fadeIn">
-      {/* 头部 */}
-      <div className="bg-gradient-to-r from-rose-500 to-pink-500 p-4 flex items-center justify-between">
+    <div
+      style={positionStyle}
+      className="fixed z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl shadow-pink-200 border-2 border-pink-100 overflow-hidden animate-fadeIn"
+    >
+      {/* 头部 - 可拖拽 */}
+      <div
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        className={`bg-gradient-to-r from-rose-500 to-pink-500 p-4 flex items-center justify-between select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+      >
         <div className="flex items-center gap-2">
           <span className="text-2xl">🤖</span>
           <div>
@@ -182,7 +273,7 @@ export default function FloatingChat() {
         <div className="flex items-center gap-1">
           <button
             onClick={clearChat}
-            className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+            className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
             title="清空对话"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,7 +282,7 @@ export default function FloatingChat() {
           </button>
           <button
             onClick={minimizeChat}
-            className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors"
+            className="p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
             title="最小化"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
