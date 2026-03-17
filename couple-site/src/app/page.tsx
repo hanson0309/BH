@@ -543,29 +543,16 @@ export default function Home() {
             <div className="flex items-center gap-2 mb-3">
 
               {myProfile?.avatar ? (
-
-                <Image
-
+                // 使用普通 img 标签避免 Vercel Image 优化问题
+                <img
                   src={myProfile.avatar}
-
                   alt="me"
-
-                  width={32}
-
-                  height={32}
-
                   className={`w-8 h-8 rounded-full object-cover border-2 ${
-
                     myRole === "A" 
-
                       ? "border-blue-400" 
-
                       : "border-pink-400"
-
                   }`}
-
                 />
-
               ) : (
 
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
@@ -669,29 +656,16 @@ export default function Home() {
               <div className="flex items-center gap-3 mb-3">
 
                 {getAuthorAvatar(p.authorRole as "A" | "B") ? (
-
-                  <Image
-
+                  // 使用普通 img 标签避免 Vercel Image 优化问题
+                  <img
                     src={getAuthorAvatar(p.authorRole as "A" | "B")!}
-
                     alt={p.authorRole}
-
-                    width={40}
-
-                    height={40}
-
                     className={`w-10 h-10 rounded-full object-cover border-2 ${
-
                       p.authorRole === "A" 
-
                         ? "border-blue-400" 
-
                         : "border-pink-400"
-
                     }`}
-
                   />
-
                 ) : (
 
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
