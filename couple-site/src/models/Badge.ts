@@ -21,7 +21,7 @@ const UserBadgeSchema = new Schema(
     badgeId: { type: String, required: true },
     earnedAt: { type: Date, default: Date.now },
     earnedByRole: { type: String, enum: ["A", "B"], required: true }, // 谁获得的（如果是共同徽章则记录当前登录者）
-    isNew: { type: Boolean, default: true }, // 是否为新获得（用于提示）
+    isNewBadge: { type: Boolean, default: true }, // 是否为新获得（用于提示）
     viewedAt: { type: Date, default: null }, // 用户何时查看过
   },
   { timestamps: true }
