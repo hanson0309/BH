@@ -41,6 +41,7 @@ const PhotoCard = React.memo(function PhotoCard({
   onClick,
   onRemove,
   loading,
+  compact,
 }: {
   photo: Photo;
   getAvatar: (role: "A" | "B") => string | undefined;
@@ -48,68 +49,139 @@ const PhotoCard = React.memo(function PhotoCard({
   onClick: () => void;
   onRemove: (e: React.MouseEvent) => void;
   loading: boolean;
+  compact?: boolean;
 }) {
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const bounceAnimRef = useRef<Animation | null>(null);
+
+  const setTransform = (transform: string, transition?: string) => {
+    const el = cardRef.current;
+    if (!el) return;
+    bounceAnimRef.current?.cancel();
+    el.style.transform = transform;
+    el.style.transition = transition ?? "";
+  };
+
+  const reset = (immediate = false) => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    bounceAnimRef.current?.cancel();
+
+    if (immediate) {
+      el.style.transition = "";
+      el.style.transform = "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px) scale(1)";
+      return;
+    }
+
+    // 可爱一点：回弹时带一点 overshoot + 轻微摇摆
+    bounceAnimRef.current = el.animate(
+      [
+        { transform: el.style.transform || "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px) scale(1)" },
+        { transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(-6px) scale(1.06)" },
+        { transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(-3px) scale(0.99)" },
+        { transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px) scale(1)" },
+      ],
+      {
+        duration: 520,
+        easing: "cubic-bezier(0.18, 0.9, 0.22, 1.25)",
+        fill: "forwards",
+      }
+    );
+  };
+
   return (
     <div
+      ref={cardRef}
       className="group relative rounded-2xl border-2 border-pink-100 bg-white overflow-hidden shadow-sm hover:shadow-md hover:border-pink-200 transition-all cursor-pointer"
       role="button"
       tabIndex={0}
       onClick={onClick}
+      onPointerEnter={() => reset(true)}
+      onPointerMove={(e) => {
+        if (e.pointerType === "touch") return;
+        const el = cardRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const px = (e.clientX - rect.left) / rect.width;
+        const py = (e.clientY - rect.top) / rect.height;
+        const rotateY = (px - 0.5) * 10;
+        const rotateX = (0.5 - py) * 10;
+        setTransform(
+          `perspective(900px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(
+            2
+          )}deg) translateY(-6px) scale(1.04)`,
+          "transform 50ms linear"
+        );
+      }}
+      onPointerDown={() => {
+        setTransform(
+          "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px) scale(0.96)",
+          "transform 110ms cubic-bezier(0.2, 0.9, 0.2, 1)"
+        );
+      }}
+      onPointerUp={() => reset()}
+      onPointerCancel={() => reset()}
+      onPointerLeave={() => reset()}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onClick();
         }
       }}
+      style={{ transform: "perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0px) scale(1)", willChange: "transform" }}
     >
       <div className="relative">
         <img
           src={photo.imageUrl}
           alt={photo.caption || "photo"}
-          className="h-36 w-full object-cover"
+          className={compact ? "h-72 w-full object-cover" : "h-36 w-full object-cover"}
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-pink-900/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
-      <div className="p-3">
-        <div className="flex items-center gap-2 mb-2">
-          {getAvatar(photo.uploadedByRole) ? (
-            <img
-              src={getAvatar(photo.uploadedByRole)!}
-              alt={getDisplayName(photo.uploadedByRole)}
-              width={24}
-              height={24}
-              className="w-6 h-6 rounded-full object-cover"
-            />
-          ) : (
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-              photo.uploadedByRole === "A" 
-                ? "bg-gradient-to-br from-pink-400 to-pink-500 text-white" 
-                : "bg-gradient-to-br from-pink-400 to-rose-500 text-white"
-            }`}>
-              {photo.uploadedByRole}
+      {!compact && (
+        <div className="p-3">
+          <div className="flex items-center gap-2 mb-2">
+            {getAvatar(photo.uploadedByRole) ? (
+              <img
+                src={getAvatar(photo.uploadedByRole)!}
+                alt={getDisplayName(photo.uploadedByRole)}
+                width={24}
+                height={24}
+                className="w-6 h-6 rounded-full object-cover"
+              />
+            ) : (
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                photo.uploadedByRole === "A" 
+                  ? "bg-gradient-to-br from-pink-400 to-pink-500 text-white" 
+                  : "bg-gradient-to-br from-pink-400 to-rose-500 text-white"
+              }`}>
+                {photo.uploadedByRole}
+              </div>
+            )}
+            <div className="text-[11px] text-pink-400">
+              {new Date(photo.createdAt).toLocaleDateString("zh-CN")}
+            </div>
+          </div>
+          {photo.caption && <div className="text-sm text-pink-900 line-clamp-1 mb-2">{photo.caption}</div>}
+          {photo.tags?.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {photo.tags.slice(0, 2).map((t: string) => (
+                <span key={t} className="rounded-full bg-pink-100 px-2 py-0.5 text-[10px] text-pink-700">
+                  {t}
+                </span>
+              ))}
+              {photo.tags.length > 2 && (
+                <span className="rounded-full bg-pink-50 px-2 py-0.5 text-[10px] text-pink-500">
+                  +{photo.tags.length - 2}
+                </span>
+              )}
             </div>
           )}
-          <div className="text-[11px] text-pink-400">
-            {new Date(photo.createdAt).toLocaleDateString("zh-CN")}
-          </div>
         </div>
-        {photo.caption && <div className="text-sm text-pink-900 line-clamp-1 mb-2">{photo.caption}</div>}
-        {photo.tags?.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {photo.tags.slice(0, 2).map((t: string) => (
-              <span key={t} className="rounded-full bg-pink-100 px-2 py-0.5 text-[10px] text-pink-700">
-                {t}
-              </span>
-            ))}
-            {photo.tags.length > 2 && (
-              <span className="rounded-full bg-pink-50 px-2 py-0.5 text-[10px] text-pink-500">
-                +{photo.tags.length - 2}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      )}
       <button
         className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 shadow-sm flex items-center justify-center text-pink-400 hover:text-pink-600 hover:bg-white opacity-0 group-hover:opacity-100 transition-all"
         disabled={loading}
@@ -157,7 +229,10 @@ export default function PhotosPage() {
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<{ A: Profile; B: Profile } | null>(null);
   const [displayCount, setDisplayCount] = useState(PHOTOS_PER_PAGE);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [stackCount, setStackCount] = useState(5);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const swipeRef = useRef<{ startX: number; startY: number; started: boolean }>({ startX: 0, startY: 0, started: false });
 
   async function refresh(force = false) {
     if (!force && globalCache.photos) {
@@ -192,9 +267,20 @@ export default function PhotosPage() {
     loadProfiles();
   }, []);
 
+  useEffect(() => {
+    const compute = () => {
+      const isDesktop = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(min-width: 640px)").matches;
+      setStackCount(isDesktop ? 7 : 5);
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
   // 筛选变化时重置分页
   useEffect(() => {
     setDisplayCount(PHOTOS_PER_PAGE);
+    setActiveIndex(0);
   }, [selectedTag, selectedMonth]);
 
   const sorted = useMemo(() => {
@@ -238,6 +324,20 @@ export default function PhotosPage() {
 
   const hasMore = displayedPhotos.length < filtered.length;
 
+  useEffect(() => {
+    if (!displayedPhotos.length) {
+      if (activeIndex !== 0) setActiveIndex(0);
+      return;
+    }
+    if (activeIndex > displayedPhotos.length - 1) {
+      setActiveIndex(displayedPhotos.length - 1);
+    }
+  }, [displayedPhotos.length, activeIndex]);
+
+  const activePhoto = useMemo(() => {
+    return displayedPhotos[activeIndex] ?? null;
+  }, [displayedPhotos, activeIndex]);
+
   const preview = useMemo(() => {
     if (!previewId) return null;
     return items.find((p) => p.id === previewId) ?? null;
@@ -258,6 +358,32 @@ export default function PhotosPage() {
       return profile?.avatar;
     };
   }, [profiles]);
+
+  function goPrev() {
+    setActiveIndex((prev) => Math.max(0, prev - 1));
+  }
+
+  function goNext() {
+    setActiveIndex((prev) => Math.min(displayedPhotos.length - 1, prev + 1));
+  }
+
+  function onStackPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    swipeRef.current = { startX: e.clientX, startY: e.clientY, started: true };
+  }
+
+  function onStackPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    if (!swipeRef.current.started) return;
+    const dx = e.clientX - swipeRef.current.startX;
+    const dy = e.clientY - swipeRef.current.startY;
+    swipeRef.current.started = false;
+
+    // 过滤垂直滚动手势
+    if (Math.abs(dy) > Math.abs(dx)) return;
+
+    const threshold = 45;
+    if (dx > threshold) goPrev();
+    if (dx < -threshold) goNext();
+  }
 
   async function upload() {
     if (!file) {
@@ -445,23 +571,78 @@ export default function PhotosPage() {
         )}
 
         {/* 照片网格 - 分页优化 */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {displayedPhotos.map((p) => (
-            <PhotoCard
-              key={p.id}
-              photo={p}
-              getAvatar={getAvatar}
-              getDisplayName={getDisplayName}
-              onClick={() => setPreviewId(p.id)}
-              onRemove={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                remove(p.id);
-              }}
-              loading={loading}
-            />
-          ))}
-        </div>
+        {displayedPhotos.length > 0 && (
+          <div className="relative">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="text-sm text-pink-500/80">
+                {activeIndex + 1}/{displayedPhotos.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl bg-pink-100 hover:bg-pink-200 px-3 py-2 text-sm text-pink-700 font-medium transition-colors disabled:opacity-50"
+                  disabled={loading || activeIndex <= 0}
+                  onClick={goPrev}
+                >
+                  上一张
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl bg-pink-100 hover:bg-pink-200 px-3 py-2 text-sm text-pink-700 font-medium transition-colors disabled:opacity-50"
+                  disabled={loading || activeIndex >= displayedPhotos.length - 1}
+                  onClick={goNext}
+                >
+                  下一张
+                </button>
+              </div>
+            </div>
+
+            <div className="relative h-[340px] w-full">
+              <div
+                className="absolute inset-0"
+                onPointerDown={onStackPointerDown}
+                onPointerUp={onStackPointerUp}
+                onPointerCancel={() => (swipeRef.current.started = false)}
+              />
+              {displayedPhotos
+                .slice(activeIndex, activeIndex + stackCount)
+                .map((p, idx) => {
+                  const z = 50 - idx;
+                  const scale = 1 - idx * 0.06;
+                  const tx = idx * 18;
+                  const rot = idx % 2 === 0 ? -6 - idx * 1.2 : 6 + idx * 1.2;
+                  const ty = idx * 10;
+
+                  return (
+                    <div
+                      key={p.id}
+                      className="absolute left-1/2 top-1/2 w-[88%] sm:w-[420px]"
+                      style={{
+                        zIndex: z,
+                        transform: `translate(-50%, -50%) translateX(${tx}px) translateY(${ty}px) rotate(${rot}deg) scale(${scale})`,
+                        transformOrigin: "center",
+                      }}
+                    >
+                      <PhotoCard
+                        photo={p}
+                        getAvatar={getAvatar}
+                        getDisplayName={getDisplayName}
+                        compact
+                        onClick={() => setPreviewId(p.id)}
+                        onRemove={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          remove(p.id);
+                        }}
+                        loading={loading}
+                      />
+                    </div>
+                  );
+                })}
+            </div>
+
+          </div>
+        )}
 
         {/* 加载更多 */}
         {hasMore && (
