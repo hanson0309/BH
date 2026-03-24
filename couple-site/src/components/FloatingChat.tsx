@@ -250,7 +250,7 @@ export default function FloatingChat() {
   return (
     <div
       style={positionStyle}
-      className="fixed z-50 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl shadow-pink-200 border-2 border-pink-100 overflow-hidden animate-fadeIn"
+      className="fixed z-50 w-[calc(100vw-32px)] sm:w-96 max-w-96 bg-white rounded-2xl shadow-2xl shadow-pink-200 border-2 border-pink-100 overflow-hidden animate-fadeIn"
     >
       {/* 头部 - 可拖拽 */}
       <div

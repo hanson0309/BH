@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import QuickNav from "@/components/QuickNav";
@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   keywords: ["情侣", "纪念日", "日记", "相册", "甜蜜"],
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -23,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN">
-      <body className={`${inter.variable} font-sans antialiased bg-gradient-to-br from-pink-50 via-rose-50 to-sky-50 min-h-screen`}>
+      <body className={`${inter.variable} font-sans antialiased bg-gradient-to-br from-pink-50 via-rose-50 to-sky-50 min-h-screen overflow-x-hidden`}>
         <QuickNav />
         {/* 在线状态指示器 */}
         <div className="fixed top-4 right-4 z-40 bg-white/80 backdrop-blur-sm rounded-full px-4 py-2 shadow-sm border border-pink-100">
