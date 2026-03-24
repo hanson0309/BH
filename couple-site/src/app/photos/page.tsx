@@ -233,6 +233,15 @@ export default function PhotosPage() {
   const [stackCount, setStackCount] = useState(5);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const swipeRef = useRef<{ startX: number; startY: number; started: boolean }>({ startX: 0, startY: 0, started: false });
+  const [dragX, setDragX] = useState(0);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [swipeOutDir, setSwipeOutDir] = useState<-1 | 0 | 1>(0);
+  const [dragOpacity, setDragOpacity] = useState(1);
+  const swipePointerIdRef = useRef<number | null>(null);
+  const draggedRef = useRef(false);
+  const swipeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastMoveRef = useRef<{ x: number; t: number }>({ x: 0, t: 0 });
 
   async function refresh(force = false) {
     if (!force && globalCache.photos) {
@@ -367,22 +376,101 @@ export default function PhotosPage() {
     setActiveIndex((prev) => Math.min(displayedPhotos.length - 1, prev + 1));
   }
 
+  useEffect(() => {
+    return () => {
+      if (swipeTimeoutRef.current) clearTimeout(swipeTimeoutRef.current);
+    };
+  }, []);
+
+  function resetDrag(immediate = false) {
+    draggedRef.current = false;
+    swipePointerIdRef.current = null;
+    swipeRef.current.started = false;
+    setIsDragging(false);
+    setSwipeOutDir(0);
+    setDragOpacity(1);
+    if (immediate) {
+      setDragX(0);
+      setDragY(0);
+      return;
+    }
+    setDragX(0);
+    setDragY(0);
+  }
+
   function onStackPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (swipeOutDir !== 0) return;
     swipeRef.current = { startX: e.clientX, startY: e.clientY, started: true };
+    swipePointerIdRef.current = e.pointerId;
+    draggedRef.current = false;
+    setIsDragging(true);
+    setDragX(0);
+    setDragY(0);
+    setDragOpacity(1);
+    lastMoveRef.current = { x: e.clientX, t: performance.now() };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onStackPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!swipeRef.current.started) return;
+    if (swipePointerIdRef.current !== e.pointerId) return;
+    const dx = e.clientX - swipeRef.current.startX;
+    const dy = e.clientY - swipeRef.current.startY;
+
+    if (!draggedRef.current) {
+      if (Math.abs(dy) > Math.abs(dx) + 6) {
+        resetDrag(true);
+        return;
+      }
+      if (Math.abs(dx) > 6) draggedRef.current = true;
+    }
+
+    setDragX(dx);
+    setDragY(dy * 0.15);
+    setDragOpacity(1 - Math.min(0.35, Math.abs(dx) / 520));
+    lastMoveRef.current = { x: e.clientX, t: performance.now() };
   }
 
   function onStackPointerUp(e: React.PointerEvent<HTMLDivElement>) {
     if (!swipeRef.current.started) return;
+    if (swipePointerIdRef.current !== e.pointerId) return;
+
     const dx = e.clientX - swipeRef.current.startX;
     const dy = e.clientY - swipeRef.current.startY;
     swipeRef.current.started = false;
+    swipePointerIdRef.current = null;
+    setIsDragging(false);
 
-    // 过滤垂直滚动手势
-    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (Math.abs(dy) > Math.abs(dx) + 6) {
+      resetDrag();
+      return;
+    }
 
-    const threshold = 45;
-    if (dx > threshold) goPrev();
-    if (dx < -threshold) goNext();
+    const threshold = 80;
+    const now = performance.now();
+    const dt = Math.max(1, now - lastMoveRef.current.t);
+    const vx = (e.clientX - lastMoveRef.current.x) / dt; // px/ms
+    const projected = dx + vx * 280; // inertia projection
+    const dir: -1 | 0 | 1 = projected > threshold ? 1 : projected < -threshold ? -1 : 0;
+
+    const canGoPrev = dir === 1 && activeIndex > 0;
+    const canGoNext = dir === -1 && activeIndex < displayedPhotos.length - 1;
+    if (canGoPrev || canGoNext) {
+      const outDir: -1 | 1 = canGoPrev ? 1 : -1;
+      setSwipeOutDir(outDir);
+      const absOut = Math.min(720, Math.max(420, Math.abs(projected)));
+      setDragX(outDir * absOut);
+      setDragY(0);
+      setDragOpacity(0);
+      swipeTimeoutRef.current = setTimeout(() => {
+        if (outDir === 1) goPrev();
+        else goNext();
+        resetDrag(true);
+      }, 220);
+      return;
+    }
+
+    resetDrag();
   }
 
   async function upload() {
@@ -601,8 +689,10 @@ export default function PhotosPage() {
               <div
                 className="absolute inset-0"
                 onPointerDown={onStackPointerDown}
+                onPointerMove={onStackPointerMove}
                 onPointerUp={onStackPointerUp}
-                onPointerCancel={() => (swipeRef.current.started = false)}
+                onPointerCancel={() => resetDrag(true)}
+                style={{ touchAction: "pan-y" }}
               />
               {displayedPhotos
                 .slice(activeIndex, activeIndex + stackCount)
@@ -612,6 +702,12 @@ export default function PhotosPage() {
                   const tx = idx * 18;
                   const rot = idx % 2 === 0 ? -6 - idx * 1.2 : 6 + idx * 1.2;
                   const ty = idx * 10;
+                  const dragScale = idx === 0 ? (isDragging ? 1.02 : swipeOutDir !== 0 ? 1.01 : 1) : 1;
+                  const dragRot = idx === 0 ? dragX * 0.03 : 0;
+                  const dragTx = idx === 0 ? dragX : 0;
+                  const dragTy = idx === 0 ? dragY : 0;
+                  const transition = idx === 0 && isDragging ? "none" : "transform 320ms cubic-bezier(0.18, 0.9, 0.18, 1), opacity 260ms ease";
+                  const opacity = idx === 0 ? dragOpacity : 1;
 
                   return (
                     <div
@@ -619,8 +715,10 @@ export default function PhotosPage() {
                       className="absolute left-1/2 top-1/2 w-[88%] sm:w-[420px]"
                       style={{
                         zIndex: z,
-                        transform: `translate(-50%, -50%) translateX(${tx}px) translateY(${ty}px) rotate(${rot}deg) scale(${scale})`,
+                        transform: `translate(-50%, -50%) translateX(${tx + dragTx}px) translateY(${ty + dragTy}px) rotate(${rot + dragRot}deg) scale(${scale * dragScale})`,
                         transformOrigin: "center",
+                        transition,
+                        opacity,
                       }}
                     >
                       <PhotoCard
@@ -628,7 +726,10 @@ export default function PhotosPage() {
                         getAvatar={getAvatar}
                         getDisplayName={getDisplayName}
                         compact
-                        onClick={() => setPreviewId(p.id)}
+                        onClick={() => {
+                          if (idx === 0 && draggedRef.current) return;
+                          setPreviewId(p.id);
+                        }}
                         onRemove={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
