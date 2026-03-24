@@ -242,6 +242,7 @@ export default function PhotosPage() {
   const draggedRef = useRef(false);
   const swipeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastMoveRef = useRef<{ x: number; t: number }>({ x: 0, t: 0 });
+  const lastPreviewTapRef = useRef(0);
 
   async function refresh(force = false) {
     if (!force && globalCache.photos) {
@@ -787,18 +788,32 @@ export default function PhotosPage() {
                   <HeartIcon className="w-5 h-5 text-rose-400" />
                   <span className="font-semibold text-pink-800">照片预览</span>
                 </div>
-                <button
-                  className="w-8 h-8 rounded-full hover:bg-pink-50 flex items-center justify-center text-pink-500 transition-colors"
-                  type="button"
-                  onClick={() => setPreviewId(null)}
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2">
-                <div className="bg-gradient-to-br from-pink-50 to-pink-50 flex items-center justify-center">
+                <div
+                  className="bg-gradient-to-br from-pink-50 to-pink-50 flex items-center justify-center"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    const now = Date.now();
+                    if (now - lastPreviewTapRef.current < 320) {
+                      lastPreviewTapRef.current = 0;
+                      setPreviewId(null);
+                      return;
+                    }
+                    lastPreviewTapRef.current = now;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    const now = Date.now();
+                    if (now - lastPreviewTapRef.current < 320) {
+                      lastPreviewTapRef.current = 0;
+                      setPreviewId(null);
+                      return;
+                    }
+                    lastPreviewTapRef.current = now;
+                  }}
+                >
                   <img
                     src={preview.imageUrl}
                     alt={preview.caption || "photo"}
@@ -863,13 +878,6 @@ export default function PhotosPage() {
                   )}
                   
                   <div className="flex justify-end gap-2">
-                    <button
-                      className="rounded-xl px-4 py-2 text-sm text-pink-600 hover:bg-pink-50 transition-colors"
-                      onClick={() => setPreviewId(null)}
-                      type="button"
-                    >
-                      关闭
-                    </button>
                     <button
                       className="rounded-xl bg-gradient-to-r from-red-400 to-rose-400 px-4 py-2 text-sm text-white font-medium shadow-md hover:shadow-lg hover:scale-[1.02] transition-all"
                       disabled={loading}
