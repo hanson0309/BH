@@ -686,14 +686,6 @@ export default function PhotosPage() {
             </div>
 
             <div className="relative h-[340px] w-full">
-              <div
-                className="absolute inset-0"
-                onPointerDown={onStackPointerDown}
-                onPointerMove={onStackPointerMove}
-                onPointerUp={onStackPointerUp}
-                onPointerCancel={() => resetDrag(true)}
-                style={{ touchAction: "pan-y" }}
-              />
               {displayedPhotos
                 .slice(activeIndex, activeIndex + stackCount)
                 .map((p, idx) => {
@@ -713,12 +705,18 @@ export default function PhotosPage() {
                     <div
                       key={p.id}
                       className="absolute left-1/2 top-1/2 w-[88%] sm:w-[420px]"
+                      onPointerDown={idx === 0 ? onStackPointerDown : undefined}
+                      onPointerMove={idx === 0 ? onStackPointerMove : undefined}
+                      onPointerUp={idx === 0 ? onStackPointerUp : undefined}
+                      onPointerCancel={idx === 0 ? () => resetDrag(true) : undefined}
                       style={{
                         zIndex: z,
                         transform: `translate(-50%, -50%) translateX(${tx + dragTx}px) translateY(${ty + dragTy}px) rotate(${rot + dragRot}deg) scale(${scale * dragScale})`,
                         transformOrigin: "center",
                         transition,
                         opacity,
+                        touchAction: idx === 0 ? "pan-y" : undefined,
+                        cursor: idx === 0 ? (isDragging ? "grabbing" : "grab") : undefined,
                       }}
                     >
                       <PhotoCard
