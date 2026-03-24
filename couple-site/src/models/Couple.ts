@@ -27,6 +27,19 @@ const CoupleSchema = new Schema(
     // 在线状态追踪
     presenceA: { type: Date, default: null },
     presenceB: { type: Date, default: null },
+    // 登录追踪（徽章系统）
+    loginStreak: {
+      A: { type: Number, default: 0 }, // 当前连续登录天数
+      B: { type: Number, default: 0 },
+    },
+    lastLoginAt: {
+      A: { type: Date, default: null }, // 上次登录日期
+      B: { type: Date, default: null },
+    },
+    totalLoginDays: {
+      A: { type: Number, default: 0 }, // 累计登录天数
+      B: { type: Number, default: 0 },
+    },
   },
   { timestamps: true, strict: false }
 );

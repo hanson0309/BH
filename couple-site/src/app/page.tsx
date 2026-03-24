@@ -7,11 +7,12 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import TogetherTimer from "@/components/TogetherTimer";
+import BadgeShowcase from "@/components/BadgeShowcase";
+import TemperatureCard from "@/components/TemperatureCard";
 
 import { globalCache, clearCache } from "@/lib/globalCache";
 
 import { apiFetchJson } from "@/lib/apiClient";
-
 
 
 type Profile = {
@@ -27,7 +28,6 @@ type Profile = {
   nickname: string;
 
 };
-
 
 
 type Post = {
@@ -47,7 +47,6 @@ type Post = {
 };
 
 
-
 type Anniversary = {
 
   id: string;
@@ -61,7 +60,6 @@ type Anniversary = {
 };
 
 
-
 function daysUntilAnniversary(dateStr: string, recurring: boolean = false): number {
 
   const now = new Date();
@@ -70,7 +68,6 @@ function daysUntilAnniversary(dateStr: string, recurring: boolean = false): numb
 
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  
 
   if (recurring) {
 
@@ -90,7 +87,6 @@ function daysUntilAnniversary(dateStr: string, recurring: boolean = false): numb
 
   }
 
-  
 
   const startOfTarget = new Date(originalDate.getFullYear(), originalDate.getMonth(), originalDate.getDate());
 
@@ -99,7 +95,6 @@ function daysUntilAnniversary(dateStr: string, recurring: boolean = false): numb
   return Math.round(diff / (1000 * 60 * 60 * 24));
 
 }
-
 
 
 export default function Home() {
@@ -121,7 +116,6 @@ export default function Home() {
   const [submitting, setSubmitting] = useState(false);
 
   const [anniversaries, setAnniversaries] = useState<Anniversary[]>([]);
-
 
 
   async function loadAnniversaries(force = false) {
@@ -153,7 +147,6 @@ export default function Home() {
   }
 
 
-
   // 预加载照片数据（用户访问照片页时更快）
 
   async function preloadPhotos() {
@@ -174,6 +167,22 @@ export default function Home() {
 
   }
 
+
+  // 更新连续登录天数
+
+  async function updateLoginStreak() {
+
+    try {
+
+      await apiFetchJson("/api/login-streak", { method: "POST" });
+
+    } catch {
+
+      // 失败不阻塞首页加载
+
+    }
+
+  }
 
 
   async function loadPosts(force = false) {
@@ -209,7 +218,6 @@ export default function Home() {
     }
 
   }
-
 
 
   async function loadProfile(force = false) {
@@ -265,9 +273,7 @@ export default function Home() {
   }
 
 
-
   const initialized = useRef(false);
-
 
 
   useEffect(() => {
@@ -279,19 +285,14 @@ export default function Home() {
     setLoading(true);
 
     Promise.all([
-
       loadPosts(),
-
       loadProfile(),
-
       loadAnniversaries(),
-
-      preloadPhotos() // 预加载照片数据
-
+      preloadPhotos(), // 预加载照片数据
+      updateLoginStreak() // 更新连续登录天数
     ]).finally(() => setLoading(false));
 
   }, []);
-
 
 
   async function handleSubmit(e: React.FormEvent) {
@@ -299,7 +300,6 @@ export default function Home() {
     e.preventDefault();
 
     if (!text.trim() || submitting) return;
-
     
 
     setSubmitting(true);
@@ -316,7 +316,6 @@ export default function Home() {
 
       });
 
-      
 
       setText("");
 
@@ -339,9 +338,7 @@ export default function Home() {
   }
 
 
-
   const myProfile = profiles?.[myRole];
-
 
 
   const getNickname = (authorRole: "A" | "B") => {
@@ -355,7 +352,6 @@ export default function Home() {
     return "";
 
   };
-
   
 
   const getAuthorName = (role: "A" | "B") => {
@@ -365,7 +361,6 @@ export default function Home() {
     return profile?.name || (role === "A" ? "👦 A" : "👧 B");
 
   };
-
   
 
   const getAuthorAvatar = (role: "A" | "B") => {
@@ -375,7 +370,6 @@ export default function Home() {
   };
 
 
-
   return (
 
     <div className="min-h-screen py-8">
@@ -383,22 +377,23 @@ export default function Home() {
       <div className="mx-auto w-full max-w-2xl px-4">
 
         {togetherSince && (
-
           <div className="mb-8 flex justify-center">
-
             <div className="text-center">
-
               <div className="text-2xl mb-3">💕</div>
-
               <div className="text-sm text-pink-600 font-medium mb-3">我们在一起</div>
-
               <TogetherTimer since={togetherSince} />
-
             </div>
-
           </div>
-
         )}
+
+        <div className="mb-6">
+          <TemperatureCard partnerName={profiles ? (myRole === "A" ? profiles.B?.name : profiles.A?.name) : "TA"} />
+        </div>
+
+        {/* 徽章墙 */}
+        <div className="mb-6">
+          <BadgeShowcase />
+        </div>
 
 
 

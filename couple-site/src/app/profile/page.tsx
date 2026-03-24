@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { clearCache, globalCache } from "@/lib/globalCache";
 import { apiFetchJson } from "@/lib/apiClient";
+import TemperatureCard from "@/components/TemperatureCard";
 
 type Profile = {
   role: "A" | "B";
@@ -233,6 +234,10 @@ export default function ProfilePage() {
           >
             返回
           </Link>
+        </div>
+
+        <div className="mb-6">
+          <TemperatureCard partnerName={partner?.name || "TA"} />
         </div>
 
         {/* 我的资料卡片 */}
