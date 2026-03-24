@@ -220,7 +220,8 @@ const PHOTOS_PER_PAGE = 9; // 每页显示 9 张照片（3x3 网格）
 export default function PhotosPage() {
   const [items, setItems] = useState<Photo[]>([]);
   const [caption, setCaption] = useState("");
-  const [tags, setTags] = useState("");
+  const [selectedUploadTags, setSelectedUploadTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
@@ -484,10 +485,11 @@ export default function PhotosPage() {
     setError(null);
     try {
       const { base64, contentType } = await fileToBase64(file);
-      const tagList = tags
+      const inputTags = tagInput
         .split(",")
         .map((t) => t.trim())
-        .filter(Boolean)
+        .filter(Boolean);
+      const tagList = Array.from(new Set([...selectedUploadTags, ...inputTags]))
         .slice(0, 10);
 
       await apiFetchJson<unknown>("/api/photos", {
@@ -502,7 +504,8 @@ export default function PhotosPage() {
       });
 
       setCaption("");
-      setTags("");
+      setSelectedUploadTags([]);
+      setTagInput("");
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       await refresh(true);
@@ -532,6 +535,135 @@ export default function PhotosPage() {
     setDisplayCount((prev) => prev + PHOTOS_PER_PAGE);
   }
 
+  const uploadCard = (
+    <div className="relative mb-6">
+      <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-200 to-pink-200 rounded-3xl blur opacity-50" />
+      <div className="relative rounded-2xl bg-white border-2 border-pink-100 p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <HeartIcon className="w-5 h-5 text-rose-400" />
+          <span className="text-sm font-medium text-pink-700">记录美好瞬间</span>
+        </div>
+        
+        <label className="block mb-4">
+          <div className="text-sm text-pink-600 mb-2">选择照片</div>
+          <div className="relative">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="w-full rounded-xl border-2 border-pink-200 px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-100 file:text-pink-700 hover:file:bg-pink-200"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+        </label>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-4">
+          <label className="block">
+            <div className="text-sm text-pink-600 mb-2">描述</div>
+            <input
+              className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 placeholder-pink-300 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="写下照片背后的故事..."
+            />
+          </label>
+          <div className="block">
+            <div className="text-sm text-pink-600 mb-2">标签</div>
+
+            {selectedUploadTags.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {selectedUploadTags.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className="rounded-full bg-pink-200/70 px-3 py-1 text-xs text-pink-800 hover:bg-pink-200 transition-colors"
+                    onClick={() => setSelectedUploadTags((prev) => prev.filter((x) => x !== t))}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 placeholder-pink-300 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                placeholder="输入新标签，回车添加（也可用逗号分隔）"
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  const next = tagInput.trim().replace(/,$/, "");
+                  if (!next) return;
+                  setSelectedUploadTags((prev) => Array.from(new Set([...prev, next])).slice(0, 10));
+                  setTagInput("");
+                }}
+              />
+              <button
+                type="button"
+                className="shrink-0 rounded-xl bg-pink-100 hover:bg-pink-200 px-3 py-2.5 text-sm text-pink-700 font-medium transition-colors"
+                onClick={() => {
+                  const next = tagInput.trim().replace(/,$/, "");
+                  if (!next) return;
+                  setSelectedUploadTags((prev) => Array.from(new Set([...prev, next])).slice(0, 10));
+                  setTagInput("");
+                }}
+              >
+                添加
+              </button>
+            </div>
+
+            {allTags.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {allTags.slice(0, 18).map((t) => {
+                  const active = selectedUploadTags.includes(t);
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      className={active
+                        ? "rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-3 py-1 text-xs text-white shadow-sm"
+                        : "rounded-full bg-pink-100 px-3 py-1 text-xs text-pink-700 hover:bg-pink-200 transition-colors"}
+                      onClick={() => {
+                        setSelectedUploadTags((prev) => {
+                          if (prev.includes(t)) return prev.filter((x) => x !== t);
+                          return Array.from(new Set([...prev, t])).slice(0, 10);
+                        });
+                      }}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 mb-4">
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            className="rounded-xl bg-gradient-to-r from-pink-500 to-pink-500 px-5 py-2.5 text-white font-semibold shadow-md shadow-pink-200 hover:shadow-lg hover:shadow-pink-300 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60"
+            disabled={loading || !file}
+            onClick={upload}
+            type="button"
+          >
+            <span className="flex items-center gap-1.5">
+              <span>📷</span>
+              {loading ? "上传中..." : "上传照片"}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen py-8 pt-16">
       <div className="mx-auto w-full max-w-2xl px-4">
@@ -553,111 +685,8 @@ export default function PhotosPage() {
           </Link>
         </div>
 
-        {/* 上传卡片 */}
-        <div className="relative mb-6">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-200 to-pink-200 rounded-3xl blur opacity-50" />
-          <div className="relative rounded-2xl bg-white border-2 border-pink-100 p-5 shadow-sm">
-            <div className="flex items-center gap-2 mb-4">
-              <HeartIcon className="w-5 h-5 text-rose-400" />
-              <span className="text-sm font-medium text-pink-700">记录美好瞬间</span>
-            </div>
-            
-            <label className="block mb-4">
-              <div className="text-sm text-pink-600 mb-2">选择照片</div>
-              <div className="relative">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="w-full rounded-xl border-2 border-pink-200 px-4 py-3 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-100 file:text-pink-700 hover:file:bg-pink-200"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
-              </div>
-            </label>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-4">
-              <label className="block">
-                <div className="text-sm text-pink-600 mb-2">描述</div>
-                <input
-                  className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 placeholder-pink-300 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
-                  value={caption}
-                  onChange={(e) => setCaption(e.target.value)}
-                  placeholder="写下照片背后的故事..."
-                />
-              </label>
-              <label className="block">
-                <div className="text-sm text-pink-600 mb-2">标签</div>
-                <input
-                  className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 placeholder-pink-300 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  placeholder="旅行, 美食, 日常..."
-                />
-              </label>
-            </div>
-
-            {error && (
-              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-600 mb-4">
-                {error}
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <button
-                className="rounded-xl bg-gradient-to-r from-pink-500 to-pink-500 px-5 py-2.5 text-white font-semibold shadow-md shadow-pink-200 hover:shadow-lg hover:shadow-pink-300 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60"
-                disabled={loading || !file}
-                onClick={upload}
-                type="button"
-              >
-                <span className="flex items-center gap-1.5">
-                  <span>📷</span>
-                  {loading ? "上传中..." : "上传照片"}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 筛选区 */}
-        {items.length > 0 && (
-          <div className="relative mb-6">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-100 to-pink-100 rounded-2xl blur opacity-30" />
-            <div className="relative rounded-2xl bg-white/80 border-2 border-pink-100 p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <div className="text-sm text-pink-600 mb-2">按标签筛选</div>
-                  <select
-                    className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
-                    value={selectedTag}
-                    onChange={(e) => setSelectedTag(e.target.value)}
-                  >
-                    <option value="all">全部标签</option>
-                    {allTags.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block">
-                  <div className="text-sm text-pink-600 mb-2">按月份筛选</div>
-                  <select
-                    className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(e.target.value)}
-                  >
-                    <option value="all">全部时间</option>
-                    {allMonths.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 空相册时：先展示上传区 */}
+        {items.length === 0 && uploadCard}
 
         {/* 照片网格 - 分页优化 */}
         {displayedPhotos.length > 0 && (
@@ -744,6 +773,47 @@ export default function PhotosPage() {
           </div>
         )}
 
+        {/* 筛选区 */}
+        {items.length > 0 && (
+          <div className="relative mb-6">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-pink-100 to-pink-100 rounded-2xl blur opacity-30" />
+            <div className="relative rounded-2xl bg-white/80 border-2 border-pink-100 p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <div className="text-sm text-pink-600 mb-2">按标签筛选</div>
+                  <select
+                    className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
+                    value={selectedTag}
+                    onChange={(e) => setSelectedTag(e.target.value)}
+                  >
+                    <option value="all">全部标签</option>
+                    {allTags.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <div className="text-sm text-pink-600 mb-2">按月份筛选</div>
+                  <select
+                    className="w-full rounded-xl border-2 border-pink-200 px-4 py-2.5 text-pink-900 focus:border-pink-400 focus:outline-none focus:ring-4 focus:ring-pink-50 transition-all bg-pink-50/30"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                  >
+                    <option value="all">全部时间</option>
+                    {allMonths.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 加载更多 */}
         {hasMore && (
           <div className="mt-6 text-center">
@@ -756,6 +826,9 @@ export default function PhotosPage() {
             </button>
           </div>
         )}
+
+        {/* 有照片时：先看照片，再展示上传区 */}
+        {items.length > 0 && uploadCard}
 
         {filtered.length === 0 && items.length > 0 && (
           <div className="text-center py-12">
