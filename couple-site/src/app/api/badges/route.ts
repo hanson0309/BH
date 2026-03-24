@@ -41,7 +41,7 @@ export async function GET() {
     const lockedBadges = badgeDefs.filter(b => !earnedBadgeIds.has(b.id));
 
     // 检查是否有新徽章（isNew = true 且未被查看过）
-    const hasNewBadges = userBadges.some(b => b.isNew);
+    const hasNewBadges = userBadges.some(b => (b as any).isNewBadge || (b as any).isNew);
 
     return NextResponse.json({
       earned: badgesWithDetails,
@@ -93,7 +93,7 @@ export async function POST() {
           coupleId: session.coupleId,
           badgeId: badge.id,
           earnedByRole: role,
-          isNew: true,
+          isNewBadge: true,
         });
         newlyEarnedBadges.push(badge);
       }
@@ -120,8 +120,8 @@ export async function PUT() {
     await connectToDatabase();
 
     await UserBadgeModel.updateMany(
-      { coupleId: session.coupleId, isNew: true },
-      { $set: { isNew: false, viewedAt: new Date() } }
+      { coupleId: session.coupleId, $or: [{ isNewBadge: true }, { isNew: true }] },
+      { $set: { isNewBadge: false, viewedAt: new Date() }, $unset: { isNew: "" } }
     );
 
     return NextResponse.json({ success: true });

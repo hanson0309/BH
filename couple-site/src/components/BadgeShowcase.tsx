@@ -8,7 +8,8 @@ interface Badge {
   badgeId: string;
   earnedAt: string;
   earnedByRole: "A" | "B";
-  isNew: boolean;
+  isNewBadge?: boolean;
+  isNew?: boolean;
   definition: {
     id: string;
     name: string;
@@ -108,7 +109,7 @@ export default function BadgeShowcase() {
         setBadges({
           ...badges,
           hasNew: false,
-          earned: badges.earned.map(b => ({ ...b, isNew: false })),
+          earned: badges.earned.map(b => ({ ...b, isNew: false, isNewBadge: false })),
         });
       }
     } catch (err) {
@@ -199,13 +200,14 @@ export default function BadgeShowcase() {
               {displayBadges?.map((badge) => {
                 const rarity = badge.definition?.rarity || "common";
                 const config = rarityConfig[rarity];
+                const isNew = Boolean((badge as any).isNewBadge ?? (badge as any).isNew);
                 
                 return (
                   <button
                     key={badge._id}
                     onClick={() => setSelectedBadge(badge)}
                     className={`group relative aspect-square rounded-2xl bg-gradient-to-br ${config.glow} 
-                      border-2 ${config.border} ${badge.isNew ? 'ring-2 ring-red-400 ring-offset-2' : ''}
+                      border-2 ${config.border} ${isNew ? 'ring-2 ring-red-400 ring-offset-2' : ''}
                       shadow-md ${config.shadow} hover:shadow-xl hover:scale-105 
                       transition-all duration-300 flex flex-col items-center justify-center p-2`}
                   >
@@ -220,7 +222,7 @@ export default function BadgeShowcase() {
                     </span>
                     
                     {/* 新徽章标记 */}
-                    {badge.isNew && (
+                    {isNew && (
                       <span className="absolute -top-2 -right-2 w-5 h-5 bg-gradient-to-br from-red-400 to-pink-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-md animate-bounce">
                         !
                       </span>
